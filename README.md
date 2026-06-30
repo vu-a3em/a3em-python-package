@@ -21,10 +21,16 @@ FIG_PATH=
 
 ### Setup Instructions
 ```bash
+# Set up virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
 
+# install dependencies
 pip3 install -r requirements.txt
 
+# setup environment variables
 source .env
+
+# deactivate virtual environment when complete
+deactivate
 ```
