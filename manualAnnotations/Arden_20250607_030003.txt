@@ -1,0 +1,3 @@
+Selection	View	Channel	Begin Time (s)	End Time (s)	Low Freq (Hz)	High Freq (Hz)	call_type	quality	overlap	earflap
+1	Spectrogram 1	1	2512.910193238	2518.011136572	0.000	182.584	RUM	3	N	0
+2	Spectrogram 1	1	2891.771169670	2897.799557246	0.000	148.408	RUM	2	N	1
