@@ -34,3 +34,16 @@ source .env
 # deactivate virtual environment when complete
 deactivate
 ```
+
+### Task Log
+- [ ] Evaluate other audio features to add to the extraction.
+- [ ] Package preprocessing and feature extraction into reusable modules or classes.
+- [ ]  Test which extracted features best identify rumbles from background noise
+   - [ ] Create another DataFrame using random clips from the recordings.
+   - [ ] Label the clips
+   - [ ] Compare feature distributions
+   - [ ] Statistical testing
+   - [ ] TRain a simple classifier
+   - [ ] Measure feature importance
+   - [ ] Visualize the feature space
+   - [ ] Evaluate indicidual features
