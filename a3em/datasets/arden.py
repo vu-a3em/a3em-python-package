@@ -4,6 +4,9 @@ import librosa
 import numpy as np
 import os
 import pandas as pd
+from pathlib import Path
+
+DATA_PATH = Path('./a3em/datasets/arden_data')
 
 
 def load_data(test_split: float, seed: int) -> tuple:
@@ -22,16 +25,19 @@ def load_data(test_split: float, seed: int) -> tuple:
 # TODO - figure out a way to cache this data
 # TODO - display a status bar
 # TODO - make this a dict
-def __prefetch() -> list:
-    audio_directory = os.getenv('AUDIO_PATH')
-    audio_files = os.listdir(audio_directory)
-    audio_aggregate = []
+def __prefetch():
+    # check for cached audio data
+    print(len(os.listdir('./a3em/datasets/arden_data')))
+    if os.listdir('./a3em/datasets/arden_data') != []:
+        return
+    
+    audio_directory = Path(os.getenv('AUDIO_PATH'))
+    audio_files = sorted(audio_directory.glob('*.wav'))
     for file in audio_files:
         path = os.path.join(audio_directory, file)
         audio, sample_rate = librosa.load(path)
-        data = { 'audio': audio, 'sample_rate': sample_rate, 'file_name': file }
-        audio_aggregate.append(data)
-    return audio_aggregate
+        data_path = os.path.join(DATA_PATH, file.stem + '.npy')
+        np.save(data_path, audio)
         
 
 def __generate_dataframe(audio_aggregate: list) -> pd.DataFrame:
@@ -44,9 +50,8 @@ def __generate_dataframe(audio_aggregate: list) -> pd.DataFrame:
         quality_rumble_annotations: pd.DataFrame = __isolate_high_quality_rumbles(annotation_path)
         recording_start: datetime = __parse_start_time(annotation_path)
 
-        # # pull audio data
-        print(audio_aggregate)
-        #audio_metadata = audio_aggregate[f'{ann]
+        # pull audio data
+        # audio_metadata = audio_aggregate[]
         # audio, sample_rate = 
 
     return all_rows
@@ -68,3 +73,6 @@ def __parse_start_time(annotation_path: str) -> datetime:
     stem = a3em.utils.__get_path_stem(annotation_path)
     parts = stem.split('_')
     return datetime.strptime(parts[1] + parts[2], '%Y%m%d%H%M%S')
+
+
+# def __load_audio(annotation_path, audio_aggregrate)

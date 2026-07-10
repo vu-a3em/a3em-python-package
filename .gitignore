@@ -2,3 +2,4 @@
 .env
 ./spectrograms/highQuality/*
 __pycache__
+*.npy
