@@ -15,6 +15,8 @@ def load_data(test_split: float, seed: int, prefetch_path: Path = None) -> tuple
         raise ValueError('the test split fraction must be between 0.0 and 1.0')
 
     # pre-load audio
+    audio_metadata = __prefetch(prefetch_path)
+    __validate_prefetch(audio_metadata)
 
     # create dataframe
 
@@ -24,7 +26,7 @@ def load_data(test_split: float, seed: int, prefetch_path: Path = None) -> tuple
 
 
 # TODO - display a status bar
-def __prefetch(prefectch_path: Path):
+def __prefetch(prefectch_path: Path) -> pd.DataFrame:
     # TODO - give more robust checks. we should make sure the dataset is complete
     prefectch_path = DEFAULT_PREFETCH_PATH if prefectch_path == None else prefectch_path
     metadata_path = os.path.join(prefectch_path, 'metadata.csv')
@@ -48,29 +50,39 @@ def __prefetch(prefectch_path: Path):
         paths.append(data_path)
         sample_rates.append(sample_rate)
 
-    df = pd.DataFrame({'name': names, 'path': paths, 'sample_rate': sample_rates})
+    df = pd.DataFrame({'path': paths, 'sample_rate': sample_rates}, index=names)
     df.to_csv(metadata_path)
     return df 
+
+
+def __validate_prefetch(audio_metadata: pd.DataFrame) -> bool:
+    indecies = audio_metadata.index
+    for i in indecies:
+        path = Path(audio_metadata.loc[i].path)
+        if path.stem != i:
+            raise IndexError('metadata not properly indexed')
+        if not path.is_file():
+            raise RuntimeError(f'file not found: {path}')
+    return True
         
 
-def __generate_dataframe(audio_aggregate: list) -> pd.DataFrame:
-    annotation_directory = os.getenv('ANNOTATION_PATH')
-    annotation_files = os.listdir(annotation_directory)
+def __generate_dataframe(audio_metadata: pd.DataFrame) -> pd.DataFrame:
+    annotation_directory = Path(os.getenv('ANNOTATION_PATH'))
+    annotation_files = sorted(annotation_directory.glob('*.txt'))
 
     all_rows = []
-    for annotation_file in annotation_files:
-        annotation_path = os.path.join(annotation_directory, annotation_file)
+    for annotation_path in annotation_files:
         quality_rumble_annotations: pd.DataFrame = __isolate_high_quality_rumbles(annotation_path)
+        annotation_path_stem: str = annotation_path.stem
         recording_start: datetime = __parse_start_time(annotation_path)
 
         # pull audio data
-        # audio_metadata = audio_aggregate[]
         # audio, sample_rate = 
 
     return all_rows
 
 
-def __isolate_high_quality_rumbles(annotation_path: str) -> pd.DataFrame:
+def __isolate_high_quality_rumbles(annotation_path: Path) -> pd.DataFrame:
     df = pd.read_csv(annotation_path, sep='\t')
     df['earflap'] = pd.to_numeric(df['earflap'], errors='coerce')
     df = df[
@@ -82,9 +94,8 @@ def __isolate_high_quality_rumbles(annotation_path: str) -> pd.DataFrame:
     return df
 
 
-def __parse_start_time(annotation_path: str) -> datetime:
-    stem = a3em.utils.__get_path_stem(annotation_path)
-    parts = stem.split('_')
+def __parse_start_time(annotation_path_stem: str) -> datetime:
+    parts = annotation_path_stem.split('_')
     return datetime.strptime(parts[1] + parts[2], '%Y%m%d%H%M%S')
 
 
