@@ -66,11 +66,3 @@ def extract_features(audio: np.ndarray, sample_rate: int) -> float:
         **mfcc_dict,
         **mel_dict
     }
-
-
-def __get_path_stem(path: str) -> str:
-    split_char = '/' if os.name == 'posix' else '\\'
-    directories = path.split(split_char)
-    file_name = directories[-1]
-    parts = file_name.split('.')
-    return parts[0]
