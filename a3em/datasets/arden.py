@@ -13,33 +13,32 @@ DEFAULT_PREFETCH_PATH = Path('./a3em/datasets/arden_data')
 
 
 def load_data(
-        prefetch_path: Path = None, quality_check: bool = True, test_split: float = 0.25, 
-        random_state: int = None, shuffle: bool = True) -> tuple:
+        prefetch_path: Path = None, quality_check: bool = True, 
+        test_split: float = 0.25, random_state: int = None, shuffle: bool = True) -> tuple:
     if test_split < 0.0 or test_split > 1.0:
         raise ValueError('the test split fraction must be between 0.0 and 1.0')
     
-    rumbles = get_quality_rumbles(prefetch_path) if quality_check else get_all_rumbles(prefetch_path)
+    audio_metadata = __prefetch(prefetch_path)
+
+    annotation_directory = Path(os.getenv('ANNOTATION_PATH'))
+    annotation_files = sorted(annotation_directory.glob('*.txt'))
+
+    rumbles = __generate_rumbles_dataframe(audio_metadata, annotation_files)
+    background_noise = __generate_background_noise_dataframe(audio_metadata, annotation_files)
+
+    # combine DataFrames
+
+    # create split. data = features | labels = quality
+
+
+
+    
 
     return False
     #return train_test_split(df, test_size=test_split, random_state=random_state, shuffle=shuffle)
 
-
-def get_quality_rumbles(prefetch_path: Path = None) -> pd.DataFrame:
-    audio_metadata = __prefetch(prefetch_path)
-    _ = __validate_prefetch(audio_metadata)
-    df = __generate_dataframe(audio_metadata)
-    return df
-
-
-def get_all_rumbles(prefetch_path: Path = None) -> pd.DataFrame:
-    audio_metadata = __prefetch(prefetch_path)
-    _ = __validate_prefetch(audio_metadata)
-    df = __generate_dataframe(audio_metadata, quality_check=False)
-    return df
-
-
 # TODO - display a status bar
-def __prefetch(prefectch_path: Path) -> pd.DataFrame:
+def __prefetch(prefectch_path: Path = None) -> pd.DataFrame:
     # TODO - give more robust checks. we should make sure the dataset is complete
     prefectch_path = DEFAULT_PREFETCH_PATH if prefectch_path == None else prefectch_path
     metadata_path = os.path.join(prefectch_path, 'metadata.csv')
@@ -47,6 +46,7 @@ def __prefetch(prefectch_path: Path) -> pd.DataFrame:
     contents = os.listdir(prefectch_path)
     if 'metadata.csv' in contents:
         df = pd.read_csv(metadata_path, index_col='Unnamed: 0')
+        _ = __validate_prefetch(df)
         return df
     
     audio_directory = Path(os.getenv('AUDIO_PATH'))
@@ -79,16 +79,12 @@ def __validate_prefetch(audio_metadata: pd.DataFrame) -> bool:
     return True
         
 
-def __generate_dataframe(audio_metadata: pd.DataFrame, quality_check: bool = True) -> pd.DataFrame:
-    annotation_directory = Path(os.getenv('ANNOTATION_PATH'))
-    annotation_files = sorted(annotation_directory.glob('*.txt'))
-
+def __generate_rumbles_dataframe(audio_metadata: pd.DataFrame, annotation_files: list, quality_check: bool = True) -> pd.DataFrame:
     all_rows = []
     for annotation_path in annotation_files:
-        annotation_path_stem: str = annotation_path.stem
-        recording_start: datetime = __parse_start_time(annotation_path_stem)
+        recording_start: datetime = __parse_start_time(annotation_path)
 
-        audio_path, sample_rate = audio_metadata.loc[annotation_path_stem]
+        audio_path, sample_rate = audio_metadata.loc[annotation_path.stem]
         audio = np.load(audio_path)
 
         rumble_annotations: pd.DataFrame = __isolate_high_quality_rumbles(annotation_path) if quality_check else __isolate_rumbles(annotation_path)
@@ -105,7 +101,7 @@ def __generate_dataframe(audio_metadata: pd.DataFrame, quality_check: bool = Tru
             features = a3em.utils.extract_features(clip_processed, sample_rate)
 
             combined = {
-                'filename': annotation_path_stem,
+                'filename': annotation_path.stem,
                 'rec_start': recording_start,
                 'abs_begin': recording_start + timedelta(seconds=row['Begin Time (s)']),
                 'abs_end': recording_start + timedelta(seconds=row['End Time (s)']),
@@ -137,6 +133,17 @@ def __isolate_high_quality_rumbles(annotation_path: Path) -> pd.DataFrame:
     return df
 
 
-def __parse_start_time(annotation_path_stem: str) -> datetime:
-    parts = annotation_path_stem.split('_')
+def __generate_background_noise_dataframe(audio_metadata: pd.DataFrame, annotation_files: list) -> pd.DataFrame:
+    for annotation_path in annotation_files:
+        annotations = pd.read_csv(annotation_path, sep='\t')
+        start_times = annotations['Begin Time (s)'].tolist()
+        times = annotations[['Begin Time (s)', 'End Time (s)']].to_dict()
+        # times = annotations['Begin Time (s)'].tolist()
+        # clip_segments = list(map(lambda row: list(row._1, row.2), times))
+        print(times)
+    return False
+    
+
+def __parse_start_time(annotation_path: Path) -> datetime:
+    parts = annotation_path.stem.split('_')
     return datetime.strptime(parts[1] + parts[2], '%Y%m%d%H%M%S')

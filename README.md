@@ -17,6 +17,7 @@ GOALS
 ANNOTATION_PATH=
 AUDIO_PATH=
 FIG_PATH=
+PREFETCH_PATH=
 ```
 
 ### Setup Instructions
@@ -37,7 +38,7 @@ deactivate
 
 ### Task Log
 - [ ] Evaluate other audio features to add to the extraction.
-- [ ] Package preprocessing and feature extraction into reusable modules or classes.
+- [x] Package preprocessing and feature extraction into reusable modules or classes.
 - [ ]  Test which extracted features best identify rumbles from background noise
    - [ ] Create another DataFrame using random clips from the recordings.
    - [ ] Label the clips
