@@ -5,26 +5,37 @@ import numpy as np
 import os
 import pandas as pd
 from pathlib import Path
+from sklearn.model_selection import train_test_split
 
 BUFFER = 0.2
 DEFAULT_PREFETCH_PATH = Path('./a3em/datasets/arden_data')
 # TODO - add default audio path (pull data from db?)
 
 
-def load_data(test_split: float, seed: int, prefetch_path: Path = None) -> tuple:
+def load_data(
+        prefetch_path: Path = None, quality_check: bool = True, test_split: float = 0.25, 
+        random_state: int = None, shuffle: bool = True) -> tuple:
     if test_split < 0.0 or test_split > 1.0:
         raise ValueError('the test split fraction must be between 0.0 and 1.0')
+    
+    rumbles = get_quality_rumbles(prefetch_path) if quality_check else get_all_rumbles(prefetch_path)
 
-    # pre-load audio
+    return False
+    #return train_test_split(df, test_size=test_split, random_state=random_state, shuffle=shuffle)
+
+
+def get_quality_rumbles(prefetch_path: Path = None) -> pd.DataFrame:
     audio_metadata = __prefetch(prefetch_path)
-    __validate_prefetch(audio_metadata)
-
-    # create dataframe
+    _ = __validate_prefetch(audio_metadata)
     df = __generate_dataframe(audio_metadata)
+    return df
 
-    # create split
 
-    return
+def get_all_rumbles(prefetch_path: Path = None) -> pd.DataFrame:
+    audio_metadata = __prefetch(prefetch_path)
+    _ = __validate_prefetch(audio_metadata)
+    df = __generate_dataframe(audio_metadata, quality_check=False)
+    return df
 
 
 # TODO - display a status bar
@@ -68,7 +79,7 @@ def __validate_prefetch(audio_metadata: pd.DataFrame) -> bool:
     return True
         
 
-def __generate_dataframe(audio_metadata: pd.DataFrame) -> pd.DataFrame:
+def __generate_dataframe(audio_metadata: pd.DataFrame, quality_check: bool = True) -> pd.DataFrame:
     annotation_directory = Path(os.getenv('ANNOTATION_PATH'))
     annotation_files = sorted(annotation_directory.glob('*.txt'))
 
@@ -80,9 +91,9 @@ def __generate_dataframe(audio_metadata: pd.DataFrame) -> pd.DataFrame:
         audio_path, sample_rate = audio_metadata.loc[annotation_path_stem]
         audio = np.load(audio_path)
 
-        quality_rumble_annotations: pd.DataFrame = __isolate_high_quality_rumbles(annotation_path)
-        for i in range(len(quality_rumble_annotations)):
-            row = quality_rumble_annotations.iloc[i]
+        rumble_annotations: pd.DataFrame = __isolate_high_quality_rumbles(annotation_path) if quality_check else __isolate_rumbles(annotation_path)
+        for i in range(len(rumble_annotations)):
+            row = rumble_annotations.iloc[i]
 
             start_sample = int((row['Begin Time (s)'] - BUFFER) * sample_rate)
             end_sample = int((row['End Time (s)'] + BUFFER) * sample_rate)
@@ -99,6 +110,7 @@ def __generate_dataframe(audio_metadata: pd.DataFrame) -> pd.DataFrame:
                 'abs_begin': recording_start + timedelta(seconds=row['Begin Time (s)']),
                 'abs_end': recording_start + timedelta(seconds=row['End Time (s)']),
                 'duration': row['End Time (s)'] - row['Begin Time (s)'],
+                'quality': row['quality'],
                 **row.to_dict(),
                 **features,
             }
@@ -108,15 +120,20 @@ def __generate_dataframe(audio_metadata: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(all_rows)
 
 
-def __isolate_high_quality_rumbles(annotation_path: Path) -> pd.DataFrame:
+def __isolate_rumbles(annotation_path: Path) -> pd.DataFrame:
     df = pd.read_csv(annotation_path, sep='\t')
     df['earflap'] = pd.to_numeric(df['earflap'], errors='coerce')
     df = df[
         (df['call_type'] == 'RUM') &
         (df['earflap'].isin([0])) &
-        (df['quality'].isin([3, 4])) &
         (df['overlap']  == 'N')
     ]
+    return df
+
+
+def __isolate_high_quality_rumbles(annotation_path: Path) -> pd.DataFrame:
+    df = __isolate_rumbles(annotation_path)
+    df = df[df['quality'].isin([3, 4])]
     return df
 
 
