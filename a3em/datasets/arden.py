@@ -6,10 +6,11 @@ import os
 import pandas as pd
 from pathlib import Path
 
-DATA_PATH = Path('./a3em/datasets/arden_data')
+DEFAULT_PREFETCH_PATH = Path('./a3em/datasets/arden_data')
+# TODO - add default audio path (pull data from db?)
 
 
-def load_data(test_split: float, seed: int) -> tuple:
+def load_data(test_split: float, seed: int, prefetch_path: Path = None) -> tuple:
     if test_split < 0.0 or test_split > 1.0:
         raise ValueError('the test split fraction must be between 0.0 and 1.0')
 
@@ -22,22 +23,34 @@ def load_data(test_split: float, seed: int) -> tuple:
     return
 
 
-# TODO - figure out a way to cache this data
 # TODO - display a status bar
-# TODO - make this a dict
-def __prefetch():
-    # check for cached audio data
-    print(len(os.listdir('./a3em/datasets/arden_data')))
-    if os.listdir('./a3em/datasets/arden_data') != []:
-        return
+def __prefetch(prefectch_path: Path):
+    # TODO - give more robust checks. we should make sure the dataset is complete
+    prefectch_path = DEFAULT_PREFETCH_PATH if prefectch_path == None else prefectch_path
+    metadata_path = os.path.join(prefectch_path, 'metadata.csv')
+
+    contents = os.listdir(prefectch_path)
+    if 'metadata.csv' in contents:
+        df = pd.read_csv(metadata_path, index_col='Unnamed: 0')
+        return df
     
     audio_directory = Path(os.getenv('AUDIO_PATH'))
     audio_files = sorted(audio_directory.glob('*.wav'))
+    names, paths, sample_rates = [], [], []
+
     for file in audio_files:
-        path = os.path.join(audio_directory, file)
-        audio, sample_rate = librosa.load(path)
-        data_path = os.path.join(DATA_PATH, file.stem + '.npy')
+        file_path = os.path.join(audio_directory, file)
+        audio, sample_rate = librosa.load(file_path)
+        data_path = os.path.join(prefectch_path, file.stem + '.npy')
         np.save(data_path, audio)
+
+        names.append(file.stem)
+        paths.append(data_path)
+        sample_rates.append(sample_rate)
+
+    df = pd.DataFrame({'name': names, 'path': paths, 'sample_rate': sample_rates})
+    df.to_csv(metadata_path)
+    return df 
         
 
 def __generate_dataframe(audio_aggregate: list) -> pd.DataFrame:
