@@ -10,6 +10,12 @@ from sklearn.model_selection import train_test_split
 
 BUFFER = 0.2
 DEFAULT_PREFETCH_PATH = Path('./a3em/datasets/arden_data')
+DROP_COLUMNS = [
+    'filename', 'rec_start', 'abs_begin', 'abs_end', 
+    'duration', 'Selection', 'View', 'Channel',
+    'Begin Time (s)', 'End Time (s)', 'Low Freq (Hz)', 'High Freq (Hz)',
+    'call_type', 'overlap', 'earflap'
+]
 # TODO - add default audio path (pull data from db?)
 
 
@@ -28,8 +34,9 @@ def load_data(
     background_noise = __generate_background_noise_dataframe(audio_metadata, annotation_files)
 
     # combine DataFrames
-    mixed_df = pd.concat([rumbles, background_noise], axis=0)
-    return mixed_df
+    mix = pd.concat([rumbles, background_noise], axis=0)
+    df = mix.drop(columns=DROP_COLUMNS)
+    return df
 
     # create split. data = features | labels = quality
 

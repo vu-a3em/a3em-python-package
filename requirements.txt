@@ -5,3 +5,4 @@ soundfile
 scipy
 matplotlib
 scikit-learn
+python-dotenv
