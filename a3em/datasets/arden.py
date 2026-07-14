@@ -42,16 +42,21 @@ def load_data(
 
 # TODO - display a status bar
 def __prefetch(prefectch_path: Path = None) -> pd.DataFrame:
+    print('prefetching data...')
+
     # TODO - give more robust checks. we should make sure the dataset is complete
     prefectch_path = DEFAULT_PREFETCH_PATH if prefectch_path == None else prefectch_path
     metadata_path = os.path.join(prefectch_path, 'metadata.csv')
 
     contents = os.listdir(prefectch_path)
     if 'metadata.csv' in contents:
+        print('local data found')
         df = pd.read_csv(metadata_path, index_col='Unnamed: 0')
         _ = __validate_prefetch(df)
         return df
     
+    print('loading data...')
+
     audio_directory = Path(os.getenv('AUDIO_PATH'))
     audio_files = sorted(audio_directory.glob('*.wav'))
     names, paths, sample_rates = [], [], []
@@ -65,6 +70,8 @@ def __prefetch(prefectch_path: Path = None) -> pd.DataFrame:
         names.append(file.stem)
         paths.append(data_path)
         sample_rates.append(sample_rate)
+
+    print(f'prefetch complete: metadata can be found at {metadata_path}') 
 
     df = pd.DataFrame({'path': paths, 'sample_rate': sample_rates}, index=names)
     df.to_csv(metadata_path)
