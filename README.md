@@ -40,7 +40,7 @@ deactivate
 - [ ] Evaluate other audio features to add to the extraction.
 - [x] Package preprocessing and feature extraction into reusable modules or classes.
 - [ ]  Test which extracted features best identify rumbles from background noise
-   - [ ] Create another DataFrame using random clips from the recordings.
+   - [x] Create another DataFrame using random clips from the recordings.
    - [ ] Label the clips
    - [ ] Compare feature distributions
    - [ ] Statistical testing
