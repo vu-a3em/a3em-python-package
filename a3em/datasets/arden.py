@@ -34,7 +34,12 @@ def load_data(
     background_noise = __generate_background_noise_dataframe(audio_metadata, annotation_files)
 
     df = pd.concat([rumbles, background_noise], axis=0).drop(columns=DROP_COLUMNS)
-    labels = df['quality']
+    labels = df['quality'].replace({
+        0: 0,
+        3: 1,
+        4: 1
+    })
+    labels.name = 'label'
     data = df.drop(columns='quality')
 
     return train_test_split(data, labels, test_size=test_split, random_state=random_state, shuffle=shuffle)

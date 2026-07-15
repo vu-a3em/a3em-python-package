@@ -44,7 +44,7 @@ deactivate
    - [x] Label the clips
    - [x] Compare feature distributions
    - [x] Statistical testing
-   - [ ] TRain a simple classifier
+   - [x] TRain a simple classifier
    - [ ] Measure feature importance
    - [ ] Visualize the feature space
    - [ ] Evaluate indicidual features
