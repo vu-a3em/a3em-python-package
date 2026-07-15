@@ -1,50 +1,49 @@
-# Acoustic Feature Extraction from African Elephant Rumbles
-DATASET
-
-Collar-borne AudioMoth recordings from Arden deployed in June 2025 within Samburu National Reserve, Kenya
-
-GOALS
-
-1) Extract acoustic features from rumble vocalizations that are relevant to rumble detection/classification.
-   1) Can look at Pardo et al. 2024 to see how they did feature extraction: https://doi.org/10.1098/rsos.241264. There is open source code from this publication here: https://datadryad.org/dataset/doi:10.5061/dryad.rv15dv4dt/.
-   2) Determine if calls with 'quality' label of 2 are sufficient for data upload
-3) Plot a histogram for each extracted feature
-4) Test which extracted features best identify rumbles from background noise by comparing with randomly extracted clips of similar duration
-5) Cross correlation to identify and remove correlated features
-
-### Formatting your .env file
-```bash
-ANNOTATION_PATH=
-AUDIO_PATH=
-FIG_PATH=
-PREFETCH_PATH=
+# A3EM Package
+```python
+import a3em
 ```
 
-### Setup Instructions
-```bash
-# set up virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
+## a3em.utils
+**preprocess**(*audio*, *sample_rate*, *normalization=0.7*)
 
-# install dependencies
-pip3 install -r requirements.txt
+This function takes in an audio clip as a `numpy.ndarray`, applies a high pass filter and a low pass filter, and normalizes the signal.
 
-# set up environment variables
-source .env
+```python
+import librosa
+from a3em.utils import preprocess
 
-# deactivate virtual environment when complete
-deactivate
+audio_path = 'test.wav'
+audio, sample_rate = librosa.load(audio_path)
+
+pre_processed_audio = preprocess(audio, sample_rate)
 ```
 
-### Task Log
-- [x] Package preprocessing and feature extraction into reusable modules or classes.
-- [x]  Test which extracted features best identify rumbles from background noise
-   - [x] Create another DataFrame using random clips from the recordings.
-   - [x] Label the clips
-   - [x] Compare feature distributions
-   - [x] Statistical testing
-   - [x] TRain a simple classifier
-   - [x] Measure feature importance
-   - [x] Visualize the feature space
-   - [x] Evaluate individual features
-   - [x] Cross validation with random forrest
+**extract_features**(*audio*, *sample_rate*)
+
+This function takes in an audio clip as a `numpy.ndarray` and returns a dictionary containing the peak frequency in the signal, the centroid of the signal, the bandwidth of the signal, the 5% and 95% frequencies of the signal, and the Mel-Frequency Cepstral Coefficients of the signal
+
+```python
+import librosa
+from a3em.utils import preprocess, extract_features
+
+audio_path = 'test.wav'
+audio, sample_rate = librosa.load(audio_path)
+
+pre_processed_audio = preprocess(audio, sample_rate)
+features = extract_features(pre_processed_audio, sample_rate)
+```
+
+## a3em.datasets
+This module give access to our public data sets. Information on each data set can be found below.
+
+### a3em.datasets.arden
+Collar-borne AudioMoth recordings from Arden deployed in June 2025 within Samburu National Reserve, Kenya.
+
+**load_data**(*test_split*, *seed*)
+
+This function returns a tuple containing a list of the individual audio clips used in our analysis and a `pandas.DataFrame` containing the audio features of each clip.
+```python
+from a3em.datasets import arden
+
+(x_train, y_train), (x_test, y_test) = arden.load_data(test_split=0.2, seed=123)
+```
