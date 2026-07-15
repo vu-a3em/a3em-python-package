@@ -14,7 +14,7 @@ DROP_COLUMNS = [
     'filename', 'rec_start', 'abs_begin', 'abs_end', 
     'duration', 'Selection', 'View', 'Channel',
     'Begin Time (s)', 'End Time (s)', 'Low Freq (Hz)', 'High Freq (Hz)',
-    'call_type', 'overlap', 'earflap'
+    'call_type', 'overlap', 'earflap',
 ]
 # TODO - add default audio path (pull data from db?)
 
@@ -33,19 +33,11 @@ def load_data(
     rumbles = __generate_rumbles_dataframe(audio_metadata, annotation_files)
     background_noise = __generate_background_noise_dataframe(audio_metadata, annotation_files)
 
-    # combine DataFrames
-    mix = pd.concat([rumbles, background_noise], axis=0)
-    df = mix.drop(columns=DROP_COLUMNS)
-    return df
+    df = pd.concat([rumbles, background_noise], axis=0).drop(columns=DROP_COLUMNS)
+    labels = df['quality']
+    data = df.drop(columns='quality')
 
-    # create split. data = features | labels = quality
-
-
-
-    
-
-    return False
-    #return train_test_split(df, test_size=test_split, random_state=random_state, shuffle=shuffle)
+    return train_test_split(data, labels, test_size=test_split, random_state=random_state, shuffle=shuffle)
 
 # TODO - display a status bar
 def __prefetch(prefectch_path: Path = None) -> pd.DataFrame:
@@ -162,6 +154,12 @@ def __generate_background_noise_dataframe(audio_metadata: pd.DataFrame, annotati
 
         # use all recorded annotations to guarantee no overlap between background noise and event of interest
         annotations = pd.read_csv(annotation_path, sep='\t')
+        rumbles = [
+            (annotations['call_type'] == 'RUM') &
+            (annotations['earflap'].isin([0])) &
+            (annotations['overlap']  == 'N') &
+            (annotations['quality'].isin([3, 4]))
+        ]
 
         # find the start and end time of each event
         rumble_event_times = annotations[['Begin Time (s)', 'End Time (s)']].to_dict()
@@ -178,7 +176,7 @@ def __generate_background_noise_dataframe(audio_metadata: pd.DataFrame, annotati
 
         # generate new time ranges that do not interfere with the event time ranges
         # there should be one clip of background noise for each rumble clip
-        clip_count = len(rumble_event_ranges)
+        clip_count = len(rumbles)
         clip_ranges = []
         while len(clip_ranges) < clip_count:
             center = audio_length * random.random()

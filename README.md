@@ -41,8 +41,8 @@ deactivate
 - [x] Package preprocessing and feature extraction into reusable modules or classes.
 - [ ]  Test which extracted features best identify rumbles from background noise
    - [x] Create another DataFrame using random clips from the recordings.
-   - [ ] Label the clips
-   - [ ] Compare feature distributions
+   - [x] Label the clips
+   - [x] Compare feature distributions
    - [ ] Statistical testing
    - [ ] TRain a simple classifier
    - [ ] Measure feature importance
