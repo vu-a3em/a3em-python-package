@@ -91,6 +91,40 @@ def __validate_prefetch(audio_metadata: pd.DataFrame) -> bool:
         if not path.is_file():
             raise RuntimeError(f'file not found: {path}')
     return True
+
+
+def __extract_clip_features(
+        audio: np.ndarray, sample_rate: int, recording_start: datetime,
+        filename: str, row: dict) -> dict:
+    """Extract features from a single audio clip and combine them with metadata."""
+
+    start_sample = max(
+        0,
+        int((row['Begin Time (s)'] - BUFFER) * sample_rate)
+    )
+
+    end_sample = min(
+        len(audio),
+        int((row['End Time (s)'] + BUFFER) * sample_rate)
+    )
+
+    clip = audio[start_sample:end_sample]
+
+    if len(clip) == 0:
+        return None
+
+    clip_processed = a3em.utils.preprocess(clip, sample_rate)
+    features = a3em.utils.extract_features(clip_processed, sample_rate)
+
+    return {
+        'filename': filename,
+        'rec_start': recording_start,
+        'abs_begin': recording_start + timedelta(seconds=row['Begin Time (s)']),
+        'abs_end': recording_start + timedelta(seconds=row['End Time (s)']),
+        'duration': row['End Time (s)'] - row['Begin Time (s)'],
+        **row,
+        **features
+    }
         
 
 def __generate_rumbles_dataframe(audio_metadata: pd.DataFrame, annotation_files: list, quality_check: bool = True) -> pd.DataFrame:
@@ -104,27 +138,17 @@ def __generate_rumbles_dataframe(audio_metadata: pd.DataFrame, annotation_files:
         rumble_annotations: pd.DataFrame = __isolate_high_quality_rumbles(annotation_path) if quality_check else __isolate_rumbles(annotation_path)
         for i in range(len(rumble_annotations)):
             row = rumble_annotations.iloc[i]
+            combined = __extract_clip_features(
+                audio=audio,
+                sample_rate=sample_rate,
+                recording_start=recording_start,
+                filename=annotation_path.stem,
+                row=row.to_dict()
+            )
 
-            start_sample = int((row['Begin Time (s)'] - BUFFER) * sample_rate)
-            end_sample = int((row['End Time (s)'] + BUFFER) * sample_rate)
-            start_time = recording_start + timedelta(seconds = row['Begin Time (s)'])
-            start_time.strftime('%Y%m%d_%H%M%S')
+            if combined is not None:
+                all_rows.append(combined)
             
-            clip = audio[start_sample:end_sample]
-            clip_processed = a3em.utils.preprocess(clip, sample_rate)
-            features = a3em.utils.extract_features(clip_processed, sample_rate)
-
-            combined = {
-                'filename': annotation_path.stem,
-                'rec_start': recording_start,
-                'abs_begin': recording_start + timedelta(seconds=row['Begin Time (s)']),
-                'abs_end': recording_start + timedelta(seconds=row['End Time (s)']),
-                'duration': row['End Time (s)'] - row['Begin Time (s)'],
-                **row.to_dict(),
-                **features,
-            }
-
-            all_rows.append(combined)
 
     return pd.DataFrame(all_rows)
 
@@ -159,10 +183,10 @@ def __generate_background_noise_dataframe(audio_metadata: pd.DataFrame, annotati
 
         # use all recorded annotations to guarantee no overlap between background noise and event of interest
         annotations = pd.read_csv(annotation_path, sep='\t')
-        rumbles = [
+        rumbles = annotations[
             (annotations['call_type'] == 'RUM') &
-            (annotations['earflap'].isin([0])) &
-            (annotations['overlap']  == 'N') &
+            (annotations['earflap'] == 0) &
+            (annotations['overlap'] == 'N') &
             (annotations['quality'].isin([3, 4]))
         ]
 
@@ -206,27 +230,16 @@ def __generate_background_noise_dataframe(audio_metadata: pd.DataFrame, annotati
                 'earflap': 0
             }
 
-            start_sample, end_sample = int(clip_start * sample_rate), int(clip_end * sample_rate)
-            start_time = recording_start + timedelta(seconds = clip_start)
-            start_time.strftime('%Y%m%d_%H%M%S')
-            
-            clip = audio[start_sample:end_sample]
-            if len(clip) == 0:
-                continue
-            clip_processed = a3em.utils.preprocess(clip, sample_rate)
-            features = a3em.utils.extract_features(clip_processed, sample_rate)
+            combined = __extract_clip_features(
+                audio=audio,
+                sample_rate=sample_rate,
+                recording_start=recording_start,
+                filename=annotation_path.stem,
+                row=row
+            )
 
-            combined = {
-                'filename': annotation_path.stem,
-                'rec_start': recording_start,
-                'abs_begin': recording_start + timedelta(seconds=row['Begin Time (s)']),
-                'abs_end': recording_start + timedelta(seconds=row['End Time (s)']),
-                'duration': row['End Time (s)'] - row['Begin Time (s)'],
-                **row,
-                **features,
-            }
-
-            all_rows.append(combined)
+            if combined is not None:
+                all_rows.append(combined)
 
     return pd.DataFrame(all_rows)
         
