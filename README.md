@@ -37,14 +37,14 @@ deactivate
 ```
 
 ### Task Log
-- [ ] Evaluate other audio features to add to the extraction.
 - [x] Package preprocessing and feature extraction into reusable modules or classes.
-- [ ]  Test which extracted features best identify rumbles from background noise
+- [x]  Test which extracted features best identify rumbles from background noise
    - [x] Create another DataFrame using random clips from the recordings.
    - [x] Label the clips
    - [x] Compare feature distributions
    - [x] Statistical testing
    - [x] TRain a simple classifier
-   - [ ] Measure feature importance
-   - [ ] Visualize the feature space
-   - [ ] Evaluate indicidual features
+   - [x] Measure feature importance
+   - [x] Visualize the feature space
+   - [x] Evaluate individual features
+   - [x] Cross validation with random forrest
