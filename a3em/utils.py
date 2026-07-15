@@ -57,12 +57,39 @@ def extract_features(audio: np.ndarray, sample_rate: int) -> float:
 
     # TODO - spectral flatness
 
+    # Harmonic-to-noise ratio (HPSS approximation)
+    harmonic, percussive = librosa.effects.hpss(audio)
+
+    harmonic_energy = np.sum(harmonic ** 2)
+    noise_energy = np.sum(percussive ** 2)
+
+    hnr = 10 * np.log10(
+        (harmonic_energy + 1e-10) /
+        (noise_energy + 1e-10)
+    )
+
+    # Low-frequency harmonic-to-noise ratio
+    low_pass = butter(2, 60, btype='lowpass', fs=sample_rate, output='sos')
+    low_audio = sosfilt(low_pass, audio)
+
+    harmonic, percussive = librosa.effects.hpss(low_audio)
+
+    harmonic_energy = np.sum(harmonic ** 2)
+    noise_energy = np.sum(percussive ** 2)
+
+    hnr_low = 10 * np.log10(
+        (harmonic_energy + 1e-10) /
+        (noise_energy + 1e-10)
+    )
+
     return {
         'peak_freq': peak_freq,
         'centroid': mean_centroid,
         'bandwidth': mean_bandwidth,
         'freq_5': freq_5,
         'freq_95': freq_95,
+        'hnr': hnr,
+        'hnr_low': hnr_low,
         **mfcc_dict,
         **mel_dict
     }
