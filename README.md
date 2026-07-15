@@ -43,7 +43,7 @@ deactivate
    - [x] Create another DataFrame using random clips from the recordings.
    - [x] Label the clips
    - [x] Compare feature distributions
-   - [ ] Statistical testing
+   - [x] Statistical testing
    - [ ] TRain a simple classifier
    - [ ] Measure feature importance
    - [ ] Visualize the feature space
