@@ -20,8 +20,13 @@ DROP_COLUMNS = [
 
 
 def load_data(
-        prefetch_path: Path = None, quality_check: bool = True, 
-        test_split: float = 0.25, random_state: int = None, shuffle: bool = True) -> tuple:
+        prefetch_path: Path = None, 
+        quality_check: bool = True, 
+        min_low_hnr: float = None,
+        test_split: float = 0.25, 
+        random_state: int = None, 
+        shuffle: bool = True
+) -> tuple:
     if test_split < 0.0 or test_split > 1.0:
         raise ValueError('the test split fraction must be between 0.0 and 1.0')
     
@@ -31,7 +36,7 @@ def load_data(
     annotation_files = sorted(annotation_directory.glob('*.txt'))
 
     rumbles = __generate_rumbles_dataframe(audio_metadata, annotation_files)
-    background_noise = __generate_background_noise_dataframe(audio_metadata, annotation_files)
+    background_noise = __generate_background_noise_dataframe(audio_metadata, annotation_files, min_low_hnr=min_low_hnr)
 
     df = pd.concat([rumbles, background_noise], axis=0).drop(columns=DROP_COLUMNS)
     labels = df['quality'].replace({
@@ -127,7 +132,11 @@ def __extract_clip_features(
     }
         
 
-def __generate_rumbles_dataframe(audio_metadata: pd.DataFrame, annotation_files: list, quality_check: bool = True) -> pd.DataFrame:
+def __generate_rumbles_dataframe(
+        audio_metadata: pd.DataFrame, 
+        annotation_files: list, 
+        quality_check: bool = True
+) -> pd.DataFrame:
     all_rows = []
     for annotation_path in annotation_files:
         recording_start: datetime = __parse_start_time(annotation_path)
@@ -170,12 +179,15 @@ def __isolate_high_quality_rumbles(annotation_path: Path) -> pd.DataFrame:
     return df
 
 
-def __generate_background_noise_dataframe(audio_metadata: pd.DataFrame, annotation_files: list, seed: int = 124) -> pd.DataFrame:    
-    #return pd.read_csv(annotation_files[0], sep='\t')
+def __generate_background_noise_dataframe(
+        audio_metadata: pd.DataFrame, 
+        annotation_files: list, 
+        seed: int = 124,
+        min_low_hnr: float = None
+) -> pd.DataFrame:    
     random.seed(seed)
     all_rows = []
     for annotation_path in annotation_files:
-        # load audio data
         recording_start: datetime = __parse_start_time(annotation_path)
         audio_path, sample_rate = audio_metadata.loc[annotation_path.stem]
         audio = np.load(audio_path)
@@ -191,10 +203,12 @@ def __generate_background_noise_dataframe(audio_metadata: pd.DataFrame, annotati
         ]
 
         # find the start and end time of each event
-        rumble_event_times = annotations[['Begin Time (s)', 'End Time (s)']].to_dict()
-        rumble_event_ranges = []
-        for i in range(0, len(rumble_event_times['Begin Time (s)'])):
-            rumble_event_ranges.append((rumble_event_times['Begin Time (s)'][i], rumble_event_times['End Time (s)'][i]))
+        rumble_event_ranges = list(
+            zip(
+                annotations['Begin Time (s)'],
+                annotations['End Time (s)']
+            )
+        )
         if len(rumble_event_ranges) == 0:
             continue
 
@@ -203,24 +217,49 @@ def __generate_background_noise_dataframe(audio_metadata: pd.DataFrame, annotati
         duration_mean = np.mean(durations)
         duration_standard_deviation = np.std(durations)
 
-        # generate new time ranges that do not interfere with the event time ranges
-        # there should be one clip of background noise for each rumble clip
+        # Generate one accepted background clip for each rumble
         clip_count = len(rumbles)
-        clip_ranges = []
-        while len(clip_ranges) < clip_count:
-            center = audio_length * random.random()
-            clip_length = duration_mean + (duration_standard_deviation * random.random() * random.randrange(-1, 2, 2))
-            clip_range = (center - clip_length * 0.5, center + clip_length * 0.5)
-            if __range_is_background_noise(clip_range, rumble_event_ranges):
-                clip_ranges.append(clip_range)
-        
-        # extract audio features from clip
-        for clip_start, clip_end in clip_ranges:
+
+        while clip_count > 0:
+
+            clip_length = duration_mean + (
+                duration_standard_deviation *
+                random.random() *
+                random.randrange(-1, 2, 2)
+            )
+
+            # Prevent non-positive clip lengths
+            clip_length = max(0.1, clip_length)
+
+            half_length = clip_length * 0.5
+
+            # Skip impossible clips
+            if clip_length >= audio_length:
+                continue
+
+            # Choose a center that keeps the entire clip inside the recording
+            center = random.uniform(
+                half_length,
+                audio_length - half_length
+            )
+
+            clip_start = center - half_length
+            clip_end = center + half_length
+
+            clip_range = (clip_start, clip_end)
+
+            # Reject if the candidate overlaps an annotated event
+            if not __range_is_background_noise(
+                clip_range,
+                rumble_event_ranges
+            ):
+                continue
+
             row = {
-                'Selection': None, 
-                'View': None, 
-                'Channel': 1, 
-                'Begin Time (s)': clip_start, 
+                'Selection': None,
+                'View': None,
+                'Channel': 1,
+                'Begin Time (s)': clip_start,
                 'End Time (s)': clip_end,
                 'Low Freq (Hz)': None,
                 'High Freq (Hz)': None,
@@ -238,8 +277,16 @@ def __generate_background_noise_dataframe(audio_metadata: pd.DataFrame, annotati
                 row=row
             )
 
-            if combined is not None:
-                all_rows.append(combined)
+            if combined is None:
+                continue
+
+            # Optional HNR filter
+            if min_low_hnr is not None:
+                if combined["hnr_low"] < min_low_hnr:
+                    continue
+
+            all_rows.append(combined)
+            clip_count -= 1
 
     return pd.DataFrame(all_rows)
         
@@ -251,6 +298,8 @@ def __range_is_background_noise(clip_range: tuple, rumble_ranges: list) -> bool:
     (clip_start, clip_end) = clip_range
     for rumble_start, rumble_end in rumble_ranges:
         if (clip_start > rumble_start and clip_start < rumble_end) or (clip_end > rumble_start and clip_end < rumble_end):
+            return False
+        if clip_start < rumble_end and clip_end > rumble_start:
             return False
         
     return True
