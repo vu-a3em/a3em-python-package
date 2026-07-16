@@ -39,11 +39,34 @@ This module give access to our public data sets. Information on each data set ca
 ### a3em.datasets.arden
 Collar-borne AudioMoth recordings from Arden deployed in June 2025 within Samburu National Reserve, Kenya.
 
-**load_data**(*test_split*, *seed*)
+**load_data**(*path=DEFAULT_PATH*, *test_split=0.25*, *random_state=123*, *shuffle: bool = True*)
 
-This function returns a tuple containing a list of the individual audio clips used in our analysis and a `pandas.DataFrame` containing the audio features of each clip.
+This function returns a tuple containing a `pandas.DataFrame` containing the audio features of each clip and a `pandas.Series`
+containing labesls.
+
 ```python
 from a3em.datasets import arden
 
-(x_train, y_train), (x_test, y_test) = arden.load_data(test_split=0.2, seed=123)
+path = '/myfiles/desired_location'
+
+(x_train, y_train), (x_test, y_test) = arden.load_data(path, test_split=0.2, random_state=123)
+
+# if test_split is set to zero, no split is done
+X, y = arden.load_data(path, test_split=0.0)
+```
+
+**load_clips**(*path=DEFAULT_PATH*, *rumbles_only=False*, *noise_seed*)
+
+This function returns a tuple containing a list containing every audio clip stored as an `numpy.array` and a `pandas.DataFrame`
+containing metadata on the clips. 
+
+```python
+from a3em.datasets import arden
+
+path = '/myfiles/desired_location'
+
+clips, metadata = arden.load_clips(path)
+
+# the setting the rumbles_only field to True will only return clips of confirmed rumbles
+rumbles, rumbles_metadata = arden.load_clips(path, rumbles_only=True)
 ```
