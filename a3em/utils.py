@@ -1,6 +1,7 @@
 import librosa
 import numpy as np
 import os
+from pathlib import Path
 from scipy.signal import butter, sosfilt
 
 
@@ -93,3 +94,15 @@ def extract_features(audio: np.ndarray, sample_rate: int) -> float:
         **mfcc_dict,
         **mel_dict
     }
+
+
+def clean_directory(path: Path, base_path: bool = True):
+    contents = list(path.iterdir())
+    while len(contents) != 0:
+        if contents[0].is_dir():
+            clean_directory(contents[0], base_path=False)
+        else:
+            contents[0].unlink()
+        contents.pop(0)
+    if not base_path:
+        path.rmdir()
