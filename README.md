@@ -39,7 +39,7 @@ This module give access to our public data sets. Information on each data set ca
 ### a3em.datasets.arden
 Collar-borne AudioMoth recordings from Arden deployed in June 2025 within Samburu National Reserve, Kenya.
 
-**load_data**(*path=DEFAULT_PATH*, *test_split=0.25*, *random_state=123*, *shuffle: bool = True*)
+**load_data**(*path=DEFAULT_PATH*, *sample_rate=None*, *test_split=0.25*, *random_state=123*, *shuffle=True*)
 
 This function returns a tuple containing a `pandas.DataFrame` containing the audio features of each clip and a `pandas.Series`
 containing labesls.
@@ -55,7 +55,7 @@ path = '/myfiles/desired_location'
 X, y = arden.load_data(path, test_split=0.0)
 ```
 
-**load_clips**(*path=DEFAULT_PATH*, *rumbles_only=False*, *noise_seed*)
+**load_clips**(*path=DEFAULT_PATH*, *rumbles_only=False*, *noise_seed=None*, *sample_rate=None*)
 
 This function returns a tuple containing a list containing every audio clip stored as an `numpy.array` and a `pandas.DataFrame`
 containing metadata on the clips. 
