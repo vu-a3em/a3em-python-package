@@ -6,9 +6,30 @@ import requests
 import zipfile
 from datetime import datetime
 from pathlib import Path
+from sklearn.model_selection import train_test_split
 
 BUFFER = 0.2
 DEFAULT_PATH='./data/'
+
+def load_data(
+        path: Path = DEFAULT_PATH, 
+        sample_rate: int = None, 
+        test_split: float = 0.25,
+        random_state: int = 123,
+        shuffle: bool = True
+) -> tuple:
+    _, df = load_clips(path, sample_rate=sample_rate)
+    labels = df['quality'].replace({
+        0: 0,
+        3: 1,
+        4: 1
+    })
+    labels.name = 'label'
+    data = df.drop(columns='quality')
+    if test_split == 0.0:
+        return data, labels
+    return train_test_split(data, labels, test_size=test_split, random_state=random_state, shuffle=shuffle)
+    
 
 def load_clips(path: Path = DEFAULT_PATH, rumble_only: bool = False, noise_seed: int = None, sample_rate: int = 2000) -> tuple:
     print('loading audio data')
@@ -28,6 +49,8 @@ def load_clips(path: Path = DEFAULT_PATH, rumble_only: bool = False, noise_seed:
             end_sample = min(len(audio), int((row['End Time (s)'] + BUFFER) * sr))
             clip = audio[start_sample:end_sample]
             clip_tuples.append((clip, row))
+    
+    # TODO - extract background noise
         
     # format the clip data
     clips, rows = [], []
