@@ -31,7 +31,12 @@ def load_data(
     return train_test_split(data, labels, test_size=test_split, random_state=random_state, shuffle=shuffle)
     
 
-def load_clips(path: Path = DEFAULT_PATH, rumble_only: bool = False, noise_seed: int = None, sample_rate: int = 2000) -> tuple:
+def load_clips(
+        path: Path = DEFAULT_PATH, 
+        rumble_only: bool = False, 
+        noise_seed: int = None, 
+        sample_rate: int = 2000
+) -> tuple:
     print('loading audio data')
     audio_files, annotation_files = __prefetch(path)
     audio_dict = {}
