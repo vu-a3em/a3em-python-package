@@ -21,6 +21,7 @@ def load_data(
     _, df = load_clips(path, sample_rate=sample_rate)
     labels = df['quality'].replace({
         0: 0,
+        2: 1,
         3: 1,
         4: 1
     })
