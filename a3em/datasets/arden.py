@@ -38,6 +38,19 @@ def load_clips(
         noise_seed: int = None, 
         sample_rate: int = 2000
 ) -> tuple:
+    clips, rows = [], []
+    for clip, row in iterclip():
+        clips.append(clip)
+        rows.append(row)
+    return clips, pd.DataFrame(rows)
+
+
+def iterclip(
+        path: Path = DEFAULT_PATH, 
+        rumble_only: bool = False, 
+        noise_seed: int = None, 
+        sample_rate: int = 2000
+):
     print('loading audio data')
     audio_files, annotation_files = __prefetch(path)
     audio_dict = {}
@@ -45,27 +58,42 @@ def load_clips(
         audio_dict[file.stem] = file  
    
     print('extracting rumbles')
-    clip_tuples = []
+    # clip_tuples = []
+    # for file in annotation_files:
+    #     audio, sr = librosa.load(audio_dict[file.stem], sr=sample_rate)
+    #     rumble_annotations = __filter_rumbles(file)
+    #     for i in range(len(rumble_annotations)):
+    #         row = rumble_annotations.iloc[i]
+    #         start_sample = max(0, int((row['Begin Time (s)'] - BUFFER) * sr))
+    #         end_sample = min(len(audio), int((row['End Time (s)'] + BUFFER) * sr))
+    #         clip = audio[start_sample:end_sample]
+    #         clip_tuples.append((clip, row))
+    rows = []
     for file in annotation_files:
-        audio, sr = librosa.load(audio_dict[file.stem], sr=sample_rate)
         rumble_annotations = __filter_rumbles(file)
         for i in range(len(rumble_annotations)):
-            row = rumble_annotations.iloc[i]
-            start_sample = max(0, int((row['Begin Time (s)'] - BUFFER) * sr))
-            end_sample = min(len(audio), int((row['End Time (s)'] + BUFFER) * sr))
-            clip = audio[start_sample:end_sample]
-            clip_tuples.append((clip, row))
+            row = rumble_annotations.iloc[i].copy()
+            row['source'] = file.stem
+            row['start_sample'] = int((row['Begin Time (s)'] - BUFFER) * sample_rate)
+            row['end_sample'] = int((row['End Time (s)'] + BUFFER) * sample_rate)
+            rows.append(row.drop(
+                labels=[
+                    'Selection', 'View', 'Channel', 
+                    'Begin Time (s)', 'End Time (s)', 
+                    'Low Freq (Hz)', 'High Freq (Hz)'
+                ]
+            ))
     
     # TODO - extract background noise
-        
-    # format the clip data
-    clips, rows = [], []
-    for clip, row in clip_tuples:
-        clips.append(clip)
-        rows.append(row)
 
     print('extraction complete')
-    return clips, pd.DataFrame(rows)
+
+    # TODO - shuffle
+
+    for row in rows:
+        audio, _ = librosa.load(audio_dict[row['source']], sr=sample_rate)
+        clip = audio[row['start_sample']:row['end_sample']]
+        yield clip, row
 
 
 def __prefetch(path: Path) -> tuple:
