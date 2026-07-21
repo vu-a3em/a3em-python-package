@@ -13,38 +13,17 @@ from sklearn.model_selection import train_test_split
 BUFFER = 0.2
 DEFAULT_PATH='./data/'
 
-def load_data(
-        path: Path = DEFAULT_PATH, 
-        sample_rate: int = 2000, 
-        test_split: float = 0.25,
-        random_state: int = 123,
-        shuffle: bool = True
-) -> tuple:
+def load_data(path: Path = DEFAULT_PATH, sample_rate: int = 2000, test_split: float = 0.25,random_state: int = 123,shuffle: bool = True) -> tuple:
     _, df = load_clips(path, sample_rate=sample_rate)
-    labels = df['quality'].replace({
-        0: 0,
-        2: 1,
-        3: 1,
-        4: 1
-    })
+    labels = df['quality'].replace({ 0: 0, 2: 1, 3: 1, 4: 1 })
     labels.name = 'label'
-    data = df.drop(columns=[
-        'call_type', 'quality', 'earflap', 
-        'source', 'sample_count', 'sample_rate', 
-        'start_sample', 'end_sample', 'overlap'
-    ])
-    if test_split == 0.0:
-        return data, labels
-    return train_test_split(data, labels, test_size=test_split, random_state=random_state, shuffle=shuffle)
+    drop = ['call_type', 'quality', 'earflap', 'source', 'sample_count', 'sample_rate', 'start_sample', 'end_sample', 'overlap']
+    data = df.drop(columns=drop)
+    return data, labels if test_split == 0.0 else train_test_split(data, labels, test_size=test_split, random_state=random_state, shuffle=shuffle)
     
 
 # TODO - add progress bar
-def load_clips(
-        path: Path = DEFAULT_PATH, 
-        rumble_only: bool = False, 
-        noise_seed: int = None, 
-        sample_rate: int = 2000
-) -> tuple:
+def load_clips(path: Path = DEFAULT_PATH, rumble_only: bool = False, noise_seed: int = None, sample_rate: int = 2000) -> tuple:
     clips, rows = [], []
     for clip, row in iterclip(path, rumble_only, noise_seed, sample_rate):
         clips.append(clip)
@@ -52,12 +31,7 @@ def load_clips(
     return clips, pd.DataFrame(rows)
 
 
-def iterclip(
-        path: Path = DEFAULT_PATH, 
-        rumble_only: bool = False, 
-        noise_seed: int = None, 
-        sample_rate: int = 2000
-):
+def iterclip(path: Path = DEFAULT_PATH, rumble_only: bool = False, noise_seed: int = None, sample_rate: int = 2000):
     print('loading audio data')
     audio_files, annotation_files = __prefetch(path)
     audio_dict = {}
@@ -65,8 +39,7 @@ def iterclip(
         audio_dict[file.stem] = file  
    
     print('extracting clip')
-    all_rows = []
-    clips = []
+    clips, all_rows = [], []
     for file in annotation_files:
         audio, _ = librosa.load(audio_dict[file.stem], sr=sample_rate)
         annotations = pd.read_csv(file, sep='\t')
@@ -77,22 +50,16 @@ def iterclip(
         if not rumble_only:
             background_noise_metadata = __extract_background_noise(metadata, sample_rate, file.stem, len(audio))
             metadata = pd.concat([metadata, background_noise_metadata], ignore_index=True)
-
         metadata = __filter_rumbles(metadata)
         metadata = metadata.sample(frac=1, random_state=noise_seed).reset_index(drop=True)
 
         for i in range(len(metadata)):
             row = metadata.iloc[i]
             clip = audio[row['start_sample']: row['end_sample']]
-            if len(clip) == 0:
-                print(row)
-                print(len(audio))
-                print(row['start_sample'])
-                print(row['end_sample'])
             clips.append(clip)
             all_rows.append(__extract_clip_features(clip, sample_rate, row.to_dict()))
-    print('extraction complete')
 
+    print('extraction complete')
     for clip, row in list(zip(clips, all_rows)):
         yield clip, row
 
@@ -147,14 +114,8 @@ def __download_data(path):
     annotation_zip.unlink()
 
 
-def __extract_rumbles(
-        annotations: pd.DataFrame, 
-        sample_rate: int, 
-        audio_source: str,
-        audio_length: int
-) -> pd.DataFrame:
-    drop = ['Selection', 'View', 'Channel', 'Begin Time (s)', 'End Time (s)', 'Low Freq (Hz)', 'High Freq (Hz)']
-    rows = []
+def __extract_rumbles(annotations: pd.DataFrame, sample_rate: int, audio_source: str,audio_length: int) -> pd.DataFrame:
+    rows, drop = [], ['Selection', 'View', 'Channel', 'Begin Time (s)', 'End Time (s)', 'Low Freq (Hz)', 'High Freq (Hz)']
     for i in range(len(annotations)):
         row = annotations.iloc[i].to_dict()
         row['source'] = audio_source
@@ -168,12 +129,7 @@ def __extract_rumbles(
     return pd.DataFrame(rows)
 
 
-def __extract_background_noise(
-        rumble_annotations: pd.DataFrame, 
-        sample_rate: int, 
-        audio_source: str,
-        audio_length: int
-) -> pd.DataFrame:
+def __extract_background_noise(rumble_annotations: pd.DataFrame, sample_rate: int, audio_source: str, audio_length: int) -> pd.DataFrame:
     rows = []
     rumble_event_ranges = list(zip(rumble_annotations['start_sample'], rumble_annotations['end_sample']))
 
@@ -225,8 +181,3 @@ def __filter_rumbles(df: pd.DataFrame) -> pd.DataFrame:
         (df['overlap']  == 'N') & # TODO - change from 'N' to 0
         (df['quality'].isin([0, 2, 3, 4]))
     ]
-
-
-def __parse_start_time(annotation_path: Path) -> datetime:
-    parts = annotation_path.stem.split('_')
-    return datetime.strptime(parts[1] + parts[2], '%Y%m%d%H%M%S')
