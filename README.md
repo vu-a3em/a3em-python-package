@@ -57,7 +57,7 @@ X, y = arden.load_data(path, test_split=0.0)
 
 **load_clips**(*path=DEFAULT_PATH*, *rumbles_only=False*, *noise_seed=None*, *sample_rate=None*)
 
-This function returns a tuple containing a list containing every audio clip stored as an `numpy.array` and a `pandas.DataFrame`
+This function returns a tuple containing a list containing every audio clip stored as a `numpy.array` and a `pandas.DataFrame`
 containing metadata on the clips. 
 
 ```python
@@ -69,4 +69,16 @@ clips, metadata = arden.load_clips(path)
 
 # the setting the rumbles_only field to True will only return clips of confirmed rumbles
 rumbles, rumbles_metadata = arden.load_clips(path, rumbles_only=True)
+```
+
+**iterclip**(*path=DEFAULT_PATH*, *rumbles_only=False*, *noise_seed=None*, *sample_rate=None*)
+
+This is a generater function that iterates over each value from **load_clips**. Each element returned is a tuple containing an audio
+clip stored as a `numpy.array` and a dictionary containing the metadata for the clip.
+
+```python
+from a3em.datasets import arden
+
+for clip, row in arden.iterclip(path, rumble_only, noise_seed, sample_rate):
+    ...
 ```
