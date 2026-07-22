@@ -6,7 +6,6 @@ import requests
 import zipfile
 import numpy as np
 import pandas as pd
-from datetime import datetime
 from pathlib import Path
 from sklearn.model_selection import train_test_split
 
@@ -54,14 +53,18 @@ def iterclip(path: Path = DEFAULT_PATH, rumble_only: bool = False, random_state:
     for i in range(len(metadata)):
         row = metadata.iloc[i].to_dict()
 
-        # load the audio clip
+        # load the audio file
         file_stem = row['file_stem']
         audio_file = prefetched_files[file_stem]['audio_path']
         audio, _ = librosa.load(audio_file, sr=sample_rate)
-        clip = audio[row['start_sample']:row['end_sample']]
-        print(row['start_sample'])
-        print(row['end_sample'])
 
+        # extract the clip
+        start_sample = max(0, int((row['Begin Time (s)'] - BUFFER)) * sample_rate)
+        end_sample = int((row['End Time (s)'] + BUFFER) * sample_rate)
+        clip = audio[start_sample:end_sample]
+        if len(clip) < 2 * sample_rate:
+            continue
+        
         # extract features and update row
         yield clip, __extract_clip_features(clip, sample_rate, row)    
 
@@ -126,13 +129,11 @@ def __download_data(path):
 
 
 def __extract_rumbles(annotations: pd.DataFrame, sample_rate: int, file_stem: str) -> pd.DataFrame:
-    rows, drop = [], ['Selection', 'View', 'Channel', 'Begin Time (s)', 'End Time (s)', 'Low Freq (Hz)', 'High Freq (Hz)']
+    rows, drop = [], ['Selection', 'View', 'Channel', 'Low Freq (Hz)', 'High Freq (Hz)']
     for i in range(len(annotations)):
         row = annotations.iloc[i].to_dict()
         row['file_stem'] = file_stem
         row['sample_rate'] = sample_rate
-        row['start_sample'] = max(0, int((row['Begin Time (s)'] - BUFFER * sample_rate) * sample_rate))
-        row['end_sample'] = int((row['End Time (s)'] + BUFFER * sample_rate) * sample_rate)
         for key in drop:
             del row[key]
         rows.append(row)
@@ -143,7 +144,7 @@ def __extract_background_noise(rumble_annotations: pd.DataFrame, sample_rate: in
     rows = []
 
     # get ranges for all possible rumbles
-    rumble_event_ranges = list(zip(rumble_annotations['start_sample'], rumble_annotations['end_sample']))
+    rumble_event_ranges = list(zip(rumble_annotations['Begin Time (s)'], rumble_annotations['End Time (s)']))
 
     # get average duration of rumbles
     durations = list(map(lambda time: time[1] - time[0], rumble_event_ranges))
@@ -157,21 +158,20 @@ def __extract_background_noise(rumble_annotations: pd.DataFrame, sample_rate: in
     for clip_start, clip_end in clip_ranges:
         rows.append({
             'call_type': 'BKG',
+            'Begin Time (s)': clip_start,
+            'End Time (s)': clip_end,
             'quality': 0,
             'overlap': 'N',
             'earflap': 0,
             'file_stem': file_stem,
-            'sample_count': clip_end - clip_start,
             'sample_rate': sample_rate,
-            'start_sample': clip_start,
-            'end_sample': clip_end
         })
 
     return pd.DataFrame(rows)
 
 
 def __generate_background_noise_regions(rumble_ranges: list) -> list:
-    start_times = [0]
+    start_times = [0.0]
     end_times = []
     for rumble_start, rumble_end in rumble_ranges:
         start_times.append(rumble_end)
@@ -184,8 +184,8 @@ def __generate_random_clip_range(boundary: tuple, duration_stats: tuple) -> tupl
     start_boundary, end_boundary = boundary
     duration_mean, duration_standard_deviation = duration_stats
         
-    center = int((end_boundary - start_boundary) * random.random()) + start_boundary
-    clip_length = int(duration_mean + (duration_standard_deviation * random.random() * random.randrange(-1, 2, 2)))    
+    center = (end_boundary - start_boundary) * random.random() + start_boundary
+    clip_length = duration_mean + (duration_standard_deviation * random.random() * random.randrange(-1, 2, 2))    
     clip_start = max(start_boundary, center - clip_length // 2)
     clip_end = min(center + clip_length // 2, end_boundary)
     
