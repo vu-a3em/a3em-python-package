@@ -8,46 +8,57 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from sklearn.model_selection import train_test_split
+from tqdm import tqdm
 
 BUFFER = 0.2
 DEFAULT_PATH='./data/'
 
-def load_data(path: Path = DEFAULT_PATH, sample_rate: int = 2000, test_split: float = 0.25,random_state: int = 123,shuffle: bool = True) -> tuple:
-    _, df = load_clips(path, sample_rate=sample_rate)
+def load_data(path: Path = DEFAULT_PATH, sample_rate: int = 2000, test_split: float = 0.25, random_state: int = 123, shuffle: bool = True) -> tuple:
+    _, df = load_clips(path, sample_rate=sample_rate, random_state=random_state)
     labels = df['quality'].replace({ 0: 0, 2: 1, 3: 1, 4: 1 })
     labels.name = 'label'
-    drop = ['call_type', 'quality', 'earflap', 'source', 'sample_count', 'sample_rate', 'start_sample', 'end_sample', 'overlap']
+    drop = ['call_type', 'quality', 'earflap', 'source', 'sample_rate', 'Begin Time (s)', 'End Time(s)', 'overlap']
     data = df.drop(columns=drop)
     return data, labels if test_split == 0.0 else train_test_split(data, labels, test_size=test_split, random_state=random_state, shuffle=shuffle)
     
 
 # TODO - add progress bar
-def load_clips(path: Path = DEFAULT_PATH, rumble_only: bool = False, noise_seed: int = None, sample_rate: int = 2000) -> tuple:
-    clips, rows = [], []
-    for clip, row in iterclip(path, rumble_only, noise_seed, sample_rate):
-        clips.append(clip)
-        rows.append(row)
-    return clips, pd.DataFrame(rows)
+def load_clips(path: Path = DEFAULT_PATH, rumble_only: bool = False, random_state: int = None, sample_rate: int = 2000) -> tuple:
+    prefetched_files = __prefetch(path)
+    metadata = __load_metadata(prefetched_files, rumble_only, random_state, sample_rate)
+
+    # process the data
+    print('extracting features')
+    clips = [None] * len(metadata)
+    data_frames = []
+    for stem in tqdm(prefetched_files.keys()):
+        # load in audio file
+        audio_file = prefetched_files[stem]['audio_path']
+        audio, _ = librosa.load(audio_file, sr=sample_rate)
+
+        # extract features
+        df = metadata[metadata.file_stem == stem]
+        rows = []
+        for i in range(len(df)):
+            row = df.iloc[i].to_dict()
+            row['idx'] = df.iloc[i].name
+            clip, features = __extract_clip_features(audio, sample_rate, row)
+            if features == None:
+                continue
+            clips[row['idx']] = clip
+            rows.append(features)
+        data_frames.append(pd.DataFrame(rows))
+    print('features extracted')
+
+    # create dataframe and restore to original ordering
+    data = pd.DataFrame(rows).sort_values(by='idx', ignore_index=True)
+    return clips, data.drop(columns=['idx'])
 
 
 def iterclip(path: Path = DEFAULT_PATH, rumble_only: bool = False, random_state: int = None, sample_rate: int = 2000):
     random.seed(random_state)
     prefetched_files = __prefetch(path)
-
-    # preload the dataframe
-    metadata = pd.DataFrame()
-    for file_stem in prefetched_files.keys():
-        annotation_file = prefetched_files[file_stem]['annotation_path']
-        annotations = pd.read_csv(annotation_file, sep='\t')
-        file_metadata = __extract_rumbles(annotations, sample_rate, file_stem)
-        if len(file_metadata) == 0:
-            continue
-        if not rumble_only:
-            background_noise_metadata = __extract_background_noise(file_metadata, sample_rate, file_stem)
-            file_metadata = pd.concat([file_metadata, background_noise_metadata], ignore_index=True)
-        file_metadata = __filter_rumbles(file_metadata)
-        metadata = file_metadata if metadata.empty else pd.concat([metadata, file_metadata], ignore_index=True)
-    metadata = metadata.sample(frac=1, random_state=random_state).reset_index(drop=True)
+    metadata = __load_metadata(prefetched_files, rumble_only, random_state, sample_rate)
 
     # lazy load each audio clip
     for i in range(len(metadata)):
@@ -57,17 +68,13 @@ def iterclip(path: Path = DEFAULT_PATH, rumble_only: bool = False, random_state:
         file_stem = row['file_stem']
         audio_file = prefetched_files[file_stem]['audio_path']
         audio, _ = librosa.load(audio_file, sr=sample_rate)
-
-        # extract the clip
-        start_sample = max(0, int((row['Begin Time (s)'] - BUFFER)) * sample_rate)
-        end_sample = int((row['End Time (s)'] + BUFFER) * sample_rate)
-        clip = audio[start_sample:end_sample]
-        if len(clip) < 2 * sample_rate:
+    
+        # extract features
+        clip, features = __extract_clip_featues(audio, sample_rate, row)
+        if features == None:
             continue
         
-        # extract features and update row
-        yield clip, __extract_clip_features(clip, sample_rate, row)    
-
+        yield clip, features
 
 def __prefetch(path: Path) -> dict:
     # check to see if data is already on local machine and download if not.
@@ -87,6 +94,22 @@ def __prefetch(path: Path) -> dict:
     return res
 
 
+def __load_metadata(prefetched_files: dict, rumble_only: bool, random_state: int, sample_rate: int) -> pd.DataFrame:
+    metadata = pd.DataFrame()
+    for file_stem in prefetched_files.keys():
+        annotation_file = prefetched_files[file_stem]['annotation_path']
+        annotations = pd.read_csv(annotation_file, sep='\t')
+        file_metadata = __extract_rumbles(annotations, sample_rate, file_stem)
+        if len(file_metadata) == 0:
+            continue
+        if not rumble_only:
+            background_noise_metadata = __extract_background_noise(file_metadata, sample_rate, file_stem)
+            file_metadata = pd.concat([file_metadata, background_noise_metadata], ignore_index=True)
+        file_metadata = __filter_rumbles(file_metadata)
+        metadata = file_metadata if metadata.empty else pd.concat([metadata, file_metadata], ignore_index=True)
+    return metadata.sample(frac=1, random_state=random_state).reset_index(drop=True)
+
+
 def __validate_data_path(path: Path) -> bool:
     print('checking for existing files')
     annotations_path, audio_path = path.joinpath('manualAnnotations'), path.joinpath('audiomoth')
@@ -99,10 +122,17 @@ def __validate_data_path(path: Path) -> bool:
     return True
 
 
-def __extract_clip_features(clip: np.ndarray, sample_rate: int, row: dict) -> dict:
+def __extract_clip_features(audio: np.ndarray, sample_rate: int, row: dict) -> tuple:
+    start_sample = max(0, int((row['Begin Time (s)'] - BUFFER)) * sample_rate)
+    end_sample = int((row['End Time (s)'] + BUFFER) * sample_rate)
+    clip = audio[start_sample:end_sample]
+    if len(clip) < sample_rate * 2:
+        return None, None
+    
     clip_processed = a3em.utils.preprocess(clip, sample_rate)
     features = a3em.utils.extract_features(clip_processed, sample_rate)
-    return { **row, ** features }
+    
+    return clip, {**row, **features}
 
 
 # TODO - modify to use API with user provided API key
