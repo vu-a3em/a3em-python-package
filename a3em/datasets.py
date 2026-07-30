@@ -1,6 +1,5 @@
 import a3em.utils
 import librosa
-import os
 import random
 import requests
 import zipfile
@@ -8,6 +7,8 @@ import numpy as np
 import pandas as pd
 from abc import ABC, abstractmethod
 from pathlib import Path
+from sklearn.model_selection import train_test_split
+from tqdm import tqdm
 
 class Arden:
 
@@ -15,14 +16,60 @@ class Arden:
     _buffer = 0.2
     _default_data_path: str = './data'
     _doi: str = 'doi%3A10.5061%2Fdryad.xd2547dz3'
-    
-    # TODO
+
     @staticmethod
     def load_data(
             api_token: str, path: str, test_split: float = 0.2, 
-            random_state: int = None, shuffle: bool = False) -> tuple:
-        data_prefetch = Arden.__prefetch(api_token, path)
-        return data_prefetch
+            random_state: int = None, sample_rate: int = 2000,
+            rumble_only: bool = False, shuffle: bool = False) -> tuple:
+        _, df = Arden.load_clips(
+            api_token, path, rumble_only, random_state, sample_rate)
+        labels = df['quality'].replace({ 0: 0, 2: 1, 3: 1, 4: 1 })
+        labels.name = 'label'
+        drop = [
+            'call_type', 'quality', 'earflap', 'file_stem', 
+            'sample_rate', 'Begin Time (s)', 'End Time (s)', 'overlap'
+        ]
+        data = df.drop(columns=drop)
+        return train_test_split(data, labels, test_size=test_split, 
+            random_state=random_state, shuffle=shuffle)
+    
+    @staticmethod
+    def load_clips(
+            api_token: str, path: str, rumble_only: bool = False, 
+            random_state: int = None, sample_rate: int = 2000) -> tuple:
+        prefetch = Arden.__prefetch(api_token, path)
+        metadata = Arden.__load_metadata(
+            prefetch, rumble_only, random_state, sample_rate)
+
+        # process the data
+        print('extracting features')
+        clips = [None] * len(metadata)
+        data_frames = []
+        for stem in tqdm(prefetch.keys()):
+            # load in audio file
+            audio_file = prefetch[stem]['audio_path']
+            audio, _ = librosa.load(audio_file, sr=sample_rate)
+
+            # extract features
+            df = metadata[metadata.file_stem == stem]
+            rows = []
+            for i in range(len(df)):
+                row = df.iloc[i].to_dict()
+                row['idx'] = df.iloc[i].name
+                clip, features = Arden.__extract_clip_features(
+                    audio, sample_rate, row)
+                if features == None:
+                    continue
+                clips[row['idx']] = clip
+                rows.append(features)
+            data_frames.append(pd.DataFrame(rows))
+        print('features extracted')
+
+        # create dataframe and restore to original ordering
+        df = pd.concat(data_frames)
+        data = df.sort_values(by='idx', ignore_index=True)
+        return clips, data.drop(columns=['idx'])
 
     @staticmethod
     def __prefetch(api_token: str, path: str) -> dict:
@@ -39,16 +86,36 @@ class Arden:
             
         print('prefetch complete')
         return res
-
-    # TODO
+    
     @staticmethod
     def __validate_local_data(path: str) -> bool:
-        return False
+        path = Path(path)
+
+        # check audiomoth
+        audiomoth = path.joinpath('audiomoth')
+        if not audiomoth.exists():
+            return False
+        audiomoth_contents = sorted(audiomoth.glob('*.WAV'))
+        if len(audiomoth_contents) != 62:
+            return False
+        
+        # check manualAnnotations
+        annotations = path.joinpath('manualAnnotations')
+        if not annotations.exists():
+            return False
+        annotations_contents = sorted(annotations.glob('*.txt'))
+        if len(annotations_contents) != 62:
+            return False
+                
+        # check that each annotation file has an audio file 
+        annotations_stems = list(map(lambda x: x.stem, annotations_contents))
+        audiomoth_stems = list(map(lambda x: x.stem, audiomoth_contents))
+        return annotations_stems == audiomoth_stems
 
     @staticmethod
     def iter(
             api_token: str, path: str, rumble_only: bool = False, 
-            random_state: int = None, sample_rate: int = 2000) -> tuple:
+            random_state: int = None, sample_rate: int = 2000):
         random.seed(random_state)
         prefetch = Arden.__prefetch(api_token, path)
         metadata = Arden.__load_metadata(
@@ -70,6 +137,8 @@ class Arden:
                 continue
 
             yield clip, features
+        
+        yield None, None
 
     @staticmethod
     def __download_data(api_token: str, path: str):      
