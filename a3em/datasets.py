@@ -15,6 +15,7 @@ class Dataset(ABC):
     def __init__(self, path, token=None):
         self.path = Path(path)
         self.token = token
+        self._index = 0
 
     @abstractmethod
     def load_data(self, test_split, random_state, shuffle):
@@ -87,16 +88,20 @@ class Arden(Dataset):
             self.__prefetch()
             self.__load_metadata(random_state, rumble_only)
             self.__load_audio_features(random_state, sample_rate)
-        return self._clips, self._features
-        
+        return self._clips, self._features   
 
-    # TODO    
     def __iter__(self):
-        return None
-
-    # TODO
+        if self._clips is None or self._features is None or reload:
+            self.__prefetch()
+            self.__load_metadata(random_state, rumble_only)
+            self.__load_audio_features(random_state, sample_rate)
+            
+    # FIXME - try to lazy load the data
     def __next__(self):
-        return None
+        clip = self._clips[self._index]
+        features = self._features.iloc[self._index].to_dict()
+        self._index += 1
+        return clip, features
 
     def __getitem__(self, key):
         if self._clips is None or self._features is None:
