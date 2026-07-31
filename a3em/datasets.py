@@ -47,6 +47,8 @@ class Arden(Dataset):
         self.metadata = None
         self.audiomoth_path = self.path.joinpath('audiomoth')
         self.annotations_path = self.path.joinpath('manualAnnotations')
+        self._features = None
+        self._clips = None
 
     # TODO
     def load_data(
@@ -55,7 +57,8 @@ class Arden(Dataset):
         random_state=None, 
         sample_rate=2000,
         rumble_only=False, 
-        shuffle=False
+        shuffle=False,
+        reload=False
     ):
         self.__prefetch()
         self.__load_metadata(random_state, sample_rate, rumble_only)
@@ -65,13 +68,14 @@ class Arden(Dataset):
         self, 
         random_state=None, 
         sample_rate=2000, 
-        rumble_only=False
+        rumble_only=False,
+        reload=False
     ):
-        self.__prefetch()
-        self.__load_metadata(random_state, sample_rate, rumble_only)
-
-        # process the data
-        print('extracting features')
+        if self._clips is None or self._features is None or reload:
+            self.__prefetch()
+            self.__load_metadata(random_state, rumble_only)
+            self.__load_audio_features(random_state, sample_rate)
+        return self._clips, self._features
         
 
     # TODO    
@@ -82,13 +86,13 @@ class Arden(Dataset):
     def __next__(self):
         return None
 
-    # TODO
     def __getitem__(self, key):
-        return None
+        if self._clips is None or self._features is None:
+            return None, None
+        return self._clips[key], self._features.iloc[key].to_dict()
 
-    # TODO
     def __len__(self):
-        return None
+        return 0 if self.metadata is None else len(self.metadata)
     
     def __prefetch(self):
         if not self.__validate_local_data():
@@ -106,25 +110,11 @@ class Arden(Dataset):
         self.prefetch = dict(zip(file_stems, file_pairs))      
         print('prefetch complete')
 
-    # FIXME - can this be updated with a try catch?
     def __validate_local_data(self):
-        # check audiomoth
-        audiomoth = self.path.joinpath('audiomoth')
-        if not audiomoth.exists():
+        if not (self.audiomoth_path.exists() and self.annotations_path.exists()):
             return False
-        audiomoth_contents = sorted(audiomoth.glob('*.WAV'))
-        if len(audiomoth_contents) != 62:
-            return False
-        
-        # check manualAnnotations
-        annotations = self.path.joinpath('manualAnnotations')
-        if not annotations.exists():
-            return False
-        annotations_contents = sorted(annotations.glob('*.txt'))
-        if len(annotations_contents) != 62:
-            return False
-                
-        # check that each annotation file has an audio file 
+        audiomoth_contents = sorted(self.audiomoth_path.glob('*.WAV'))
+        annotations_contents = sorted(self.annotations_path.glob('*.txt'))
         annotations_stems = list(map(lambda x: x.stem, annotations_contents))
         audiomoth_stems = list(map(lambda x: x.stem, audiomoth_contents))
         return annotations_stems == audiomoth_stems
@@ -133,7 +123,7 @@ class Arden(Dataset):
     def __download_data(self):
         pass
 
-    def __load_metadata(self, random_state, sample_rate, rumble_only):
+    def __load_metadata(self, random_state, rumble_only):
         metadata = pd.DataFrame()
         for stem in self.prefetch.keys():
             annotation_path = self.prefetch[stem]['annotation_path']
@@ -142,19 +132,11 @@ class Arden(Dataset):
                 continue
 
             # extract elephant rumbles
-            file_metadata = Arden.__filter_annotations(
-                annotations, 
-                sample_rate, 
-                stem
-            )
+            file_metadata = Arden.__filter_annotations(annotations, stem)
 
             # extract background noise if applicable
             if not rumble_only:
-                noise_metadata = Arden.__extract_noise(
-                    file_metadata, 
-                    sample_rate, 
-                    stem
-                )
+                noise_metadata = Arden.__extract_noise(file_metadata, stem)
                 file_metadata = pd.concat(
                     [file_metadata, noise_metadata], 
                     ignore_index=True
@@ -170,16 +152,48 @@ class Arden(Dataset):
             .reset_index(drop=True)
         )
 
+    def __load_audio_features(        
+        self, 
+        random_state=None, 
+        sample_rate=2000, 
+    ):
+        random.seed(random_state)
+        clips = [None] * len(self)
+        features = [None] * len(self)
+        
+        print('extracting features')
+        for stem in tqdm(self.prefetch.keys()):
+            # load in audio file
+            audio_file = self.prefetch[stem]['audio_path']
+            audio, _ = librosa.load(audio_file, sr=sample_rate)
+
+            df = self.metadata[self.metadata.file_stem == stem]
+            for index, row in df.iterrows():
+                start_time = row['Begin Time (s)']
+                end_time = row['End Time (s)']
+
+                clip, feature_set = Arden.__extract_clip_features(
+                    audio, 
+                    sample_rate, 
+                    start_time, 
+                    end_time
+                )
+
+                clips[index] = clip 
+                features[index] = feature_set
+        
+        self._features = pd.DataFrame(features)
+        self._clips = clips
+
     @staticmethod
-    def __filter_annotations(annotations, sample_rate, stem):
+    def __filter_annotations(annotations, stem):
         d = ['Selection', 'View', 'Channel', 'Low Freq (Hz)', 'High Freq (Hz)']
         df = annotations.drop(columns=d)
-        df.insert(0, 'sample_rate', [sample_rate] * len(annotations))
         df.insert(0, 'file_stem', [stem] * len(annotations))
         return df
         
     @staticmethod
-    def __extract_noise(rumble_annotations, sample_rate, stem):
+    def __extract_noise(rumble_annotations, stem):
         # get ranges for all possible rumbles
         rumble_event_ranges = list(zip(
             rumble_annotations['Begin Time (s)'],
@@ -202,7 +216,6 @@ class Arden(Dataset):
         for clip_start, clip_end in clip_ranges:
             rows.append({
                 'file_stem': stem,
-                'sample_rate': sample_rate,
                 'call_type': 'BKG',
                 'Begin Time (s)': clip_start,
                 'End Time (s)': clip_end,
@@ -214,6 +227,7 @@ class Arden(Dataset):
         return pd.DataFrame(rows)
 
     @staticmethod
+    # FIXME filter for clip duration as well
     def __filter_clips(df):
         df['earflap'] = pd.to_numeric(df['earflap'], errors='coerce')
         return df[
@@ -248,4 +262,18 @@ class Arden(Dataset):
         clip_end = min(center + clip_length / 2, end_bound)
 
         return clip_start, clip_end
-    
+
+    @staticmethod
+    def __extract_clip_features(audio, sample_rate, start_time, end_time):
+        buffer = 0.2
+        start_sample = max(0, int((start_time - buffer) * sample_rate))
+        end_sample = int((end_time + buffer) * sample_rate)
+
+        clip = audio[start_sample:end_sample]
+        if len(clip) < sample_rate * 2:
+            return [], {}
+
+        preprocessed_clip = a3em.utils.preprocess(clip, sample_rate)
+        features = a3em.utils.extract_features(preprocessed_clip, sample_rate)
+
+        return clip, features
