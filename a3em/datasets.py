@@ -57,12 +57,24 @@ class Arden(Dataset):
         random_state=None, 
         sample_rate=2000,
         rumble_only=False, 
-        shuffle=False,
-        reload=False
-    ):
-        self.__prefetch()
-        self.__load_metadata(random_state, sample_rate, rumble_only)
-        return None    
+        reload=False,
+        shuffle=False
+    ):        
+        if self._clips is None or self._features is None or reload:
+            self.__prefetch()
+            self.__load_metadata(random_state, rumble_only)
+            self.__load_audio_features(random_state, sample_rate)
+
+        labels = self.metadata['quality'].replace({0: 0, 2: 1, 3: 1, 4: 1})
+        labels.name = 'labels'
+
+        return train_test_split(
+            self._features,
+            labels,
+            test_size=test_split,
+            random_state=random_state,
+            shuffle=shuffle
+        )
 
     def load_clips(
         self, 
@@ -152,11 +164,7 @@ class Arden(Dataset):
             .reset_index(drop=True)
         )
 
-    def __load_audio_features(        
-        self, 
-        random_state=None, 
-        sample_rate=2000, 
-    ):
+    def __load_audio_features(self, random_state=None, sample_rate=2000):
         random.seed(random_state)
         clips = [None] * len(self)
         features = [None] * len(self)
