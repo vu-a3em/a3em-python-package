@@ -196,7 +196,7 @@ class Arden(Dataset):
 
             # extract background noise if applicable
             if not rumble_only:
-                noise_metadata = Arden.__extract_noise(file_metadata, stem)
+                noise_metadata = Arden.__extract_noise(annotations, stem)
                 file_metadata = pd.concat(
                     [file_metadata, noise_metadata], 
                     ignore_index=True
@@ -246,6 +246,7 @@ class Arden(Dataset):
         d = ['Selection', 'View', 'Channel', 'Low Freq (Hz)', 'High Freq (Hz)']
         df = annotations.drop(columns=d)
         df.insert(0, 'file_stem', [stem] * len(annotations))
+        df['duration'] = df['End Time (s)'] - df['Begin Time (s)']
         return df
         
     @staticmethod
@@ -277,13 +278,13 @@ class Arden(Dataset):
                 'End Time (s)': clip_end,
                 'quality': 0,
                 'overlap': 'N',
-                'earflap': 0
+                'earflap': 0,
+                'duration': clip_end - clip_start
             })
 
         return pd.DataFrame(rows)
 
     @staticmethod
-    # FIXME filter for clip duration as well
     def __filter_clips(df):
         df['earflap'] = pd.to_numeric(df['earflap'], errors='coerce')
         return df[
@@ -291,6 +292,7 @@ class Arden(Dataset):
             & (df['earflap'].isin([0, 1]))
             & (df['overlap'] == 'N')
             & (df['quality'].isin([0, 2, 3, 4]))
+            & (df['duration'] > 2)
         ]
 
     @staticmethod
