@@ -46,8 +46,8 @@ class Arden(Dataset):
         super().__init__(path, token)
         self.prefetch = None
         self.metadata = None
-        self.audiomoth_path = self.path.joinpath('audiomoth')
-        self.annotations_path = self.path.joinpath('manualAnnotations')
+        self.audiomoth_path = self.path / 'audiomoth'
+        self.annotations_path = self.path / 'manualAnnotations'
         self._features = None
         self._clips = None
 
@@ -123,11 +123,11 @@ class Arden(Dataset):
         audiomoth_files = sorted(self.audiomoth_path.glob('*.WAV'))
         annotation_files = sorted(self.annotations_path.glob('*.txt'))
         
-        file_stems = list(map(lambda x: x.stem, audiomoth_files))
-        file_pairs = list(map(
-            lambda x: {'audio_path': x[0], 'annotation_path': x[1]},
-            zip(audiomoth_files, annotation_files)
-        ))
+        file_stems = [file.stem for file in audiomoth_files]
+        file_pairs = [
+            {'audio_path': x[0], 'annotation_path': x[1]}
+            for x in zip(audiomoth_files, annotation_files)
+        ]
         
         self.prefetch = dict(zip(file_stems, file_pairs))      
         print('prefetch complete')
@@ -137,8 +137,8 @@ class Arden(Dataset):
             return False
         audiomoth_contents = sorted(self.audiomoth_path.glob('*.WAV'))
         annotations_contents = sorted(self.annotations_path.glob('*.txt'))
-        annotations_stems = list(map(lambda x: x.stem, annotations_contents))
-        audiomoth_stems = list(map(lambda x: x.stem, audiomoth_contents))
+        annotations_stems = [file.stem for file in annotations_contents]
+        audiomoth_stems = [file.stem for file in audiomoth_contents]
         return annotations_stems == audiomoth_stems
 
     def __download_data(self):
@@ -166,7 +166,7 @@ class Arden(Dataset):
         print('download in progress')
         for file in files:
             download_src = file['_links']['stash:download']['href']
-            download_dst = self.path.joinpath(file['path'])
+            download_dst = self.path / file['path']
             r = requests.get(f'{Arden.api}/{download_src}',
                              headers={'authorization': f'Bearer {self.token}'})
             if r.status_code != 200:
@@ -185,8 +185,8 @@ class Arden(Dataset):
 
     def __load_metadata(self, random_state, rumble_only):
         metadata = pd.DataFrame()
-        for stem in self.prefetch.keys():
-            annotation_path = self.prefetch[stem]['annotation_path']
+        for stem, prefetch in self.prefetch.items():
+            annotation_path = prefetch['annotation_path']
             annotations = pd.read_csv(annotation_path, sep='\t')
             if annotations.empty:
                 continue
@@ -218,9 +218,9 @@ class Arden(Dataset):
         features = [None] * len(self)
         
         print('extracting features')
-        for stem in tqdm(self.prefetch.keys()):
+        for stem, prefetch in tqdm(self.prefetch.items()):
             # load in audio file
-            audio_file = self.prefetch[stem]['audio_path']
+            audio_file = prefetch['audio_path']
             audio, _ = librosa.load(audio_file, sr=sample_rate)
 
             df = self.metadata[self.metadata.file_stem == stem]
@@ -258,15 +258,15 @@ class Arden(Dataset):
         ))
 
         # get average duration of rumbles
-        rumble_deltas = list(map(lambda t: t[1] - t[0], rumble_event_ranges))
+        rumble_deltas = [end - start for start, end in rumble_event_ranges]
         rumble_delta_stats = np.mean(rumble_deltas), np.std(rumble_deltas)
 
         # generate noise clips from regions without rumbles
         noise_regions = Arden.__find_noise_regions(rumble_event_ranges)
-        clip_ranges = list(map(
-            lambda x: Arden.__random_clip_range(x, rumble_delta_stats),
-            noise_regions
-        ))
+        clip_ranges = [
+            Arden.__random_clip_range(region, rumble_delta_stats) 
+            for region in noise_regions
+        ]
 
         # create dataframe
         rows = []
