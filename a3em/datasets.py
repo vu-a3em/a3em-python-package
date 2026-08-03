@@ -51,7 +51,6 @@ class Arden(Dataset):
         self._features = None
         self._clips = None
 
-    # TODO
     def load_data(
         self, 
         test_split=0.2, 
@@ -67,7 +66,7 @@ class Arden(Dataset):
             self.__load_audio_features(random_state, sample_rate)
 
         labels = self.metadata['quality'].replace({0: 0, 2: 1, 3: 1, 4: 1})
-        labels.name = 'labels'
+        labels.name = 'label'
 
         return train_test_split(
             self._features,
@@ -90,7 +89,13 @@ class Arden(Dataset):
             self.__load_audio_features(random_state, sample_rate)
         return self._clips, self._features   
 
-    def __iter__(self):
+    def __iter__(
+        self, 
+        random_state=None, 
+        sample_rate=2000, 
+        rumble_only=False,
+        reload=False
+    ):
         if self._clips is None or self._features is None or reload:
             self.__prefetch()
             self.__load_metadata(random_state, rumble_only)
@@ -136,9 +141,47 @@ class Arden(Dataset):
         audiomoth_stems = list(map(lambda x: x.stem, audiomoth_contents))
         return annotations_stems == audiomoth_stems
 
-    # TODO
     def __download_data(self):
-        pass
+        # make sure the directory is clear
+        a3em.utils.clean_directory(self.path)
+
+        # pull files metadata
+        print('pulling metadata')
+        r = requests.get(f'{Arden.api}/api/v2/datasets/{Arden.doi}/versions')
+        if r.status_code != 200:
+            raise RuntimeError(r.text)
+        content = r.json()
+        latest_version = content['_embedded']['stash:versions'][0]
+        files_path = latest_version['_links']['stash:files']['href']
+
+        # get individual download links
+        print('locating files')
+        r = requests.get(f'{Arden.api}/{files_path}')
+        if r.status_code != 200:
+            raise RuntimeError(r.text)
+        content = r.json()
+        files = content['_embedded']['stash:files']
+
+        # download the files
+        print('download in progress')
+        for file in files:
+            download_src = file['_links']['stash:download']['href']
+            download_dst = self.path.joinpath(file['path'])
+            r = requests.get(f'{Arden.api}/{download_src}',
+                             headers={'authorization': f'Bearer {self.token}'})
+            if r.status_code != 200:
+                raise RuntimeError(r.text)
+            with open(download_dst, 'wb') as fd:
+                for chunk in r.iter_content(chunk_size=128):
+                    fd.write(chunk)
+
+        # unpack the files
+        print('unpacking')
+        zip_files = sorted(self.path.glob('*.zip'))
+        for zip_file in zip_files:
+            with zipfile.ZipFile(zip_file, 'r') as zip_ref:
+                zip_ref.extractall(self.path)
+            zip_file.unlink()
 
     def __load_metadata(self, random_state, rumble_only):
         metadata = pd.DataFrame()
