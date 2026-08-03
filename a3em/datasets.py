@@ -61,12 +61,13 @@ class Arden(Dataset):
         shuffle=False
     ):        
         if self._clips is None or self._features is None or reload:
-            self.__prefetch()
-            self.__load_metadata(random_state, rumble_only)
-            self.__load_audio_features(random_state, sample_rate)
+            self.__setup(random_state, sample_rate, rumble_only)
 
-        labels = self.metadata['quality'].replace({0: 0, 2: 1, 3: 1, 4: 1})
-        labels.name = 'label'
+        labels = (
+            self.metadata['quality']
+            .replace({0: 0, 2: 1, 3: 1, 4: 1})
+            .rename('label')
+        )
 
         return train_test_split(
             self._features,
@@ -84,9 +85,7 @@ class Arden(Dataset):
         reload=False
     ):
         if self._clips is None or self._features is None or reload:
-            self.__prefetch()
-            self.__load_metadata(random_state, rumble_only)
-            self.__load_audio_features(random_state, sample_rate)
+            self.__setup(random_state, sample_rate, rumble_only)
         return self._clips, self._features   
 
     def __iter__(
@@ -97,9 +96,7 @@ class Arden(Dataset):
         reload=False
     ):
         if self._clips is None or self._features is None or reload:
-            self.__prefetch()
-            self.__load_metadata(random_state, rumble_only)
-            self.__load_audio_features(random_state, sample_rate)
+            self.__setup(random_state, sample_rate, rumble_only)
             
     # FIXME - try to lazy load the data
     def __next__(self):
@@ -119,18 +116,20 @@ class Arden(Dataset):
     def __prefetch(self):
         if not self.__validate_local_data():
             self.__download_data()
-            
         audiomoth_files = sorted(self.audiomoth_path.glob('*.WAV'))
         annotation_files = sorted(self.annotations_path.glob('*.txt'))
-        
         file_stems = [file.stem for file in audiomoth_files]
         file_pairs = [
             {'audio_path': x[0], 'annotation_path': x[1]}
             for x in zip(audiomoth_files, annotation_files)
         ]
-        
         self.prefetch = dict(zip(file_stems, file_pairs))      
         print('prefetch complete')
+
+    def __setup(self, random_state, sample_rate, rumble_only):
+        self.__prefetch()
+        self.__load_metadata(random_state, rumble_only)
+        self.__load_audio_features(random_state, sample_rate)
 
     def __validate_local_data(self):
         if not (self.audiomoth_path.exists() and self.annotations_path.exists()):
@@ -269,9 +268,8 @@ class Arden(Dataset):
         ]
 
         # create dataframe
-        rows = []
-        for clip_start, clip_end in clip_ranges:
-            rows.append({
+        return pd.DataFrame([
+            {
                 'file_stem': stem,
                 'call_type': 'BKG',
                 'Begin Time (s)': clip_start,
@@ -280,9 +278,9 @@ class Arden(Dataset):
                 'overlap': 'N',
                 'earflap': 0,
                 'duration': clip_end - clip_start
-            })
-
-        return pd.DataFrame(rows)
+            }
+            for clip_start, clip_end in clip_ranges
+        ])
 
     @staticmethod
     def __filter_clips(df):
@@ -307,7 +305,6 @@ class Arden(Dataset):
     def __random_clip_range(boundary, delta_stats):
         start_bound, end_bound = boundary
         delta_mean, delta_std = delta_stats
-
         center = (end_bound - start_bound) * random.random() + start_bound
         clip_length = (
             delta_mean 
@@ -315,10 +312,8 @@ class Arden(Dataset):
             * random.random() 
             * random.randrange(-1, 2, 2)
         )
-
         clip_start = max(start_bound, center - clip_length / 2)
         clip_end = min(center + clip_length / 2, end_bound)
-
         return clip_start, clip_end
 
     @staticmethod
@@ -326,12 +321,9 @@ class Arden(Dataset):
         buffer = 0.2
         start_sample = max(0, int((start_time - buffer) * sample_rate))
         end_sample = int((end_time + buffer) * sample_rate)
-
         clip = audio[start_sample:end_sample]
         if len(clip) < sample_rate * 2:
             return [], {}
-
         preprocessed_clip = a3em.utils.preprocess(clip, sample_rate)
         features = a3em.utils.extract_features(preprocessed_clip, sample_rate)
-
         return clip, features
