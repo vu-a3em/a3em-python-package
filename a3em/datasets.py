@@ -97,9 +97,12 @@ class Arden(Dataset):
     ):
         if self._clips is None or self._features is None or reload:
             self.__setup(random_state, sample_rate, rumble_only)
+        self._index = 0
+        return self
             
-    # FIXME - try to lazy load the data
     def __next__(self):
+        if self._index == len(self):
+            raise StopIteration
         clip = self._clips[self._index]
         features = self._features.iloc[self._index].to_dict()
         self._index += 1
