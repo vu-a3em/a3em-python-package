@@ -34,82 +34,168 @@ features = extract_features(pre_processed_audio, sample_rate)
 ```
 
 # a3em.datasets
-This module give access to our public data sets. Information on each data set can be found below.
+
+The `a3em.datasets` module provides convenient access to publicly available A3EM datasets. Datasets automatically download, cache, preprocess, and extract features on first use.
 
 ## Arden
-Collar-borne AudioMoth recordings from Arden deployed in June 2025 within Samburu National Reserve, Kenya.
 
-### load_data
-Arden.**load_data**(api_token, path, test_split=0.2, random_state=None, sample_rate=2000, rumble_only=False, shuffle=False)
-
-This function returns tuples containing a `pandas.DataFrame` containing the audio features of each clip and a `pandas.Series`
-containing labesls. 
-
-**Parameters**
-- `api_token`: This is the token that can be accected through the user's Dryad account. It is necessary to access the database.
-- `path`: The path where local data should be stored.
-- `test_split`: Should be a float between 0.0 and 1.0. This is the fraction of data points reserved for testing.
-- `random_state`: The seed used for all psuedo-random properties of the class.
-- `sample_rate`: The desired sample rate for audio data
-- `rumble_only`: Whether to only include elephant rumbles in the dataset or also include background noise.
-- `shuffle`: Whether or not to shuffle the data before splitting.
+The Arden dataset contains collar-borne AudioMoth recordings collected in June 2025 in Samburu National Reserve, Kenya.
 
 ```python
 from a3em.datasets import Arden
 import os
 
-path = os.getenv('DATA_PATH')
-token = os.getenv('API_TOKEN')
-
-(x_train, y_train), (x_test, y_test) = Arden.load_data(token, path, test_split=0.2, random_state=123)
+dataset = Arden(
+    path=os.getenv("DATA_PATH"),
+    token=os.getenv("API_TOKEN")
+)
 ```
 
-### load_clips
-Arden.**load_clips**(api_token, path, rumble_only=False, random_state=None, sample_rate=2000)
+The first time the dataset is accessed it will automatically:
 
-This function returns a tuple containing a list containing every audio clip stored as a `numpy.array` and a `pandas.DataFrame`
-containing metadata on the clips. 
+1. Download the dataset from Dryad (if necessary).
+2. Extract the downloaded archives.
+3. Generate metadata.
+4. Extract audio clips.
+5. Preprocess the clips.
+6. Compute acoustic features.
 
-**Parameters**
-- `api_token`: This is the token that can be accected through the user's Dryad account. It is necessary to access the database.
-- `path`: The path where local data should be stored.
-- `rumble_only`: Whether to only include elephant rumbles in the dataset or also include background noise.
-- `random_state`: The seed used for all psuedo-random properties of the class.
-- `sample_rate`: The desired sample rate for audio data
+Subsequent calls reuse the cached data unless `reload=True` is specified.
+
+---
+
+## load_data
 
 ```python
-from a3em.datasets import arden
-import os
-
-path = os.getenv('DATA_PATH')
-token = os.getenv('API_TOKEN')
-
-clips, metadata = arden.load_clips(token, path)
-
-# the setting the rumbles_only field to True will only return clips of confirmed rumbles
-rumbles, rumbles_metadata = arden.load_clips(token, path, rumbles_only=True)
+load_data(
+    test_split=0.2,
+    random_state=None,
+    sample_rate=2000,
+    rumble_only=False,
+    reload=False,
+    shuffle=False
+)
 ```
 
-### iter
-Arden.**iter**(api_token, path rumble_only=False, random_state=None, sample_rate=2000)
-
-This is a generater function that iterates over each value from **load_clips**. Each element returned is a tuple containing an audio
-clip stored as a `numpy.array` and a dictionary containing the metadata for the clip.
-
-**Parameters**
-- `api_token`: This is the token that can be accected through the user's Dryad account. It is necessary to access the database.
-- `path`: The path where local data should be stored.
-- `rumble_only`: Whether to only include elephant rumbles in the dataset or also include background noise.
-- `random_state`: The seed used for all psuedo-random properties of the class.
-- `sample_rate`: The desired sample rate for audio data
+Returns train/test splits of extracted acoustic features together with their labels.
 
 ```python
-from a3em.datasets import arden
+from a3em.datasets import Arden
 import os
 
-path = os.getenv('DATA_PATH')
-token = os.getenv('API_TOKEN')
+dataset = Arden(
+    path=os.getenv("DATA_PATH"),
+    token=os.getenv("API_TOKEN")
+)
 
-arden_iter = Arden.iter(token, path)
-clip, metadata = next(arden_iter)
+x_train, x_test, y_train, y_test = dataset.load_data(
+    test_split=0.2,
+    random_state=123,
+    shuffle=True
+)
 ```
+
+### Parameters
+
+| Parameter | Description |
+|------------|-------------|
+| `test_split` | Fraction of samples reserved for testing. |
+| `random_state` | Seed used for dataset shuffling and background noise generation. |
+| `sample_rate` | Sample rate used when loading audio. |
+| `rumble_only` | If `True`, only elephant rumble clips are included. Otherwise background-noise clips are also generated. |
+| `reload` | Forces regeneration of cached clips and features. |
+| `shuffle` | Whether to shuffle samples before creating the train/test split. |
+
+### Returns
+
+```
+x_train : pandas.DataFrame
+x_test  : pandas.DataFrame
+y_train : pandas.Series
+y_test  : pandas.Series
+```
+
+The labels are binary:
+
+- `0` — Background noise
+- `1` — Elephant rumble
+
+---
+
+## load_clips
+
+```python
+load_clips(
+    random_state=None,
+    sample_rate=2000,
+    rumble_only=False,
+    reload=False
+)
+```
+
+Returns all extracted audio clips together with their computed feature vectors.
+
+```python
+clips, features = dataset.load_clips(
+    rumble_only=False
+)
+```
+
+### Returns
+
+- `clips` — list of NumPy arrays containing audio clips.
+- `features` — `pandas.DataFrame` containing one row of extracted acoustic features per clip.
+
+---
+
+## Iteration
+
+An `Arden` dataset is iterable.
+
+```python
+dataset = Arden(path, token)
+
+dataset.__iter__()
+
+for clip, features in dataset:
+    print(len(clip))
+    print(features)
+```
+
+Each iteration returns
+
+```python
+(
+    numpy.ndarray,     # audio clip
+    dict               # extracted acoustic features
+)
+```
+
+---
+
+## Indexing
+
+Individual clips can be accessed by index.
+
+```python
+clip, features = dataset[10]
+```
+
+---
+
+## Dataset Length
+
+The total number of clips can be obtained using `len()`.
+
+```python
+len(dataset)
+```
+
+---
+
+## Notes
+
+- Audio clips are automatically preprocessed before feature extraction.
+- Background-noise clips are randomly generated from regions that do not overlap annotated elephant calls.
+- Feature extraction is performed only once unless `reload=True`.
+- The dataset internally caches both audio clips and extracted features to avoid repeated computation.
