@@ -52,6 +52,24 @@ class Arden(Dataset):
         self._clips = None
 
     def load_data(
+        self,
+        random_state=None,
+        sample_rate=2000,
+        rumble_only=False,
+        reload=False
+    ):
+        if self._clips is None or self._features is None or reload:
+            self.__setup(random_state, sample_rate, rumble_only)
+
+        labels = (
+            self.metadata['quality']
+            .replace({0: 0, 2: 1, 3: 1, 4: 1})
+            .rename('label')
+        )
+
+        return self._features, labels
+
+    def load_data_ml(
         self, 
         test_split=0.2, 
         random_state=None, 
