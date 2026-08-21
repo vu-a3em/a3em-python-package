@@ -1,4 +1,4 @@
-import a3em.utils
+import a3em_analysis.utils
 import librosa
 import random
 import requests
@@ -345,6 +345,6 @@ class Arden(Dataset):
         clip = audio[start_sample:end_sample]
         if len(clip) < sample_rate * 2:
             return [], {}
-        preprocessed_clip = a3em.utils.preprocess(clip, sample_rate)
-        features = a3em.utils.extract_features(preprocessed_clip, sample_rate)
+        preprocessed_clip = a3em_analysis.utils.preprocess(clip, sample_rate)
+        features = a3em_analysis.utils.extract_features(preprocessed_clip, sample_rate)
         return clip, features
