@@ -1,6 +1,7 @@
 .venv
 .env
 __pycache__
-data
 .DS_Store
-scratch.ipynb
+src/.devenv
+dist/
+build.sh

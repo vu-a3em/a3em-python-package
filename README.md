@@ -1,12 +1,12 @@
 # A3EM Package
 
 ```python
-import a3em
+import a3em_analysis
 ```
 
 A3EM provides utilities for preprocessing bioacoustic recordings, extracting acoustic features, and working with supported bioacoustic datasets.
 
-# `a3em.utils`
+# `a3em_analysis.utils`
 
 ## `preprocess`
 
@@ -20,7 +20,7 @@ Takes an audio clip as a `numpy.ndarray`, applies high-pass and low-pass filteri
 
 ```python
 import librosa
-from a3em.utils import preprocess
+from a3em_analysis.utils import preprocess
 
 audio_path = "test.wav"
 audio, sample_rate = librosa.load(audio_path)
@@ -42,7 +42,7 @@ Takes an audio clip as a `numpy.ndarray` and extracts acoustic features from the
 
 ```python
 import librosa
-from a3em.utils import preprocess, extract_features
+from a3em_analysis.utils import preprocess, extract_features
 
 audio_path = "test.wav"
 audio, sample_rate = librosa.load(audio_path)
@@ -51,16 +51,16 @@ preprocessed_audio = preprocess(audio, sample_rate)
 features = extract_features(preprocessed_audio, sample_rate)
 ```
 
-# `a3em.datasets`
+# `a3em_analysis.datasets`
 
-The `a3em.datasets` module provides convenient access to supported A3EM datasets. Dataset classes handle downloading, preprocessing, clip extraction, and feature extraction.
+The `a3em_analysis.datasets` module provides convenient access to supported A3EM datasets. Dataset classes handle downloading, preprocessing, clip extraction, and feature extraction.
 
 ## Arden
 
 The `Arden` dataset contains collar-borne AudioMoth recordings collected in June 2025 in Samburu National Reserve, Kenya.
 
 ```python
-from a3em.datasets import Arden
+from a3em_analysis.datasets import Arden
 import os
 
 dataset = Arden(
@@ -331,8 +331,8 @@ For each retained metadata entry:
 
 1. The corresponding time range is extracted from the recording.
 2. A `0.2` second buffer is added to each side.
-3. The clip is passed through `a3em.utils.preprocess`.
-4. Acoustic features are calculated using `a3em.utils.extract_features`.
+3. The clip is passed through `a3em_analysis.utils.preprocess`.
+4. Acoustic features are calculated using `a3em_analysis.utils.extract_features`.
 
 The original extracted clip and its computed features are retained by the dataset instance.
 
@@ -364,7 +364,7 @@ random_state
 
 ```python
 import os
-from a3em.datasets import Arden
+from a3em_analysis.datasets import Arden
 
 dataset = Arden(
     path=os.getenv("DATA_PATH"),

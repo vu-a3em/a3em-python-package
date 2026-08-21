@@ -1,0 +1,34 @@
+[build-system]
+requires = [
+    "hatchling >= 1.26",
+    "pandas",
+    "numpy",
+    "librosa",
+    "soundfile",
+    "matplotlib",
+    "scikit-learn",
+    "python-dotenv",
+    "statsmodels",
+    "tqdm"
+]
+build-backend = "hatchling.build"
+
+[project]
+name = "a3em-analysis"
+version = "0.0.2"
+authors = [
+    { name="Gabriel Barnard", email="gabriel.h.barnard@vanderbilt.edu" },
+]
+description = "A3EM provides utilities for preprocessing bioacoustic recordings, extracting acoustic features, and working with supported bioacoustic datasets."
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "MIT"
+license-files = ["LICENSE"]
+
+[project.urls]
+Homepage = "https://github.com/vu-a3em/a3em-python-package"
+Issues = "https://github.com/vu-a3em/a3em-python-package/issues"
