@@ -4,3 +4,5 @@ __pycache__
 data
 .DS_Store
 scratch.ipynb
+src/a3em/requirements.txt
+src/a3em/.devenv
