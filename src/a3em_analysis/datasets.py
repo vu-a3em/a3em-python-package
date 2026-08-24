@@ -316,8 +316,8 @@ class Arden(Dataset):
 
     @staticmethod
     def __find_noise_regions(rumble_ranges):
-        start_times = [x[0] for x in rumble_ranges]
-        end_times = [x[1] for x in rumble_ranges]
+        start_times = [x[1] for x in rumble_ranges]
+        end_times = [x[0] for x in rumble_ranges]
         start_times.pop()
         start_times.insert(0, 0.0)
         return list(zip(start_times, end_times))
