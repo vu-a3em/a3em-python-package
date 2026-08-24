@@ -63,7 +63,7 @@ class Arden(Dataset):
 
         labels = (
             self.metadata['quality']
-            .replace({0: 0, 2: 1, 3: 1, 4: 1})
+            .replace({-1: 0, 2: 1, 3: 1, 4: 1})
             .rename('label')
         )
 
@@ -83,7 +83,7 @@ class Arden(Dataset):
 
         labels = (
             self.metadata['quality']
-            .replace({0: 0, 2: 1, 3: 1, 4: 1})
+            .replace({-1: 0, 2: 1, 3: 1, 4: 1})
             .rename('label')
         )
 
@@ -295,7 +295,7 @@ class Arden(Dataset):
                 'call_type': 'BKG',
                 'Begin Time (s)': clip_start,
                 'End Time (s)': clip_end,
-                'quality': 0,
+                'quality': -1,
                 'overlap': 'N',
                 'earflap': 0,
                 'duration': clip_end - clip_start
@@ -310,7 +310,7 @@ class Arden(Dataset):
             (df['call_type'].isin(['RUM', 'BKG']))
             & (df['earflap'].isin([0, 1]))
             & (df['overlap'] == 'N')
-            & (df['quality'].isin([0, 2, 3, 4]))
+            & (df['quality'].isin([-1, 2, 3, 4]))
             & (df['duration'] > 2)
         ]
 
