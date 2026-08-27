@@ -10,13 +10,13 @@ def preprocess(audio: np.ndarray, sample_rate: int, normalization: float = 0.7):
     if normalization < 0.0 or normalization > 1.0:
         raise ValueError('the normalization factor must be between 0.0 and 1.0')
 
-    # high pass filter
-    high_pass = butter(2, 15, btype='highpass', fs=sample_rate, output='sos')
-    audio = sosfilt(high_pass, audio)
-
     # low pass filter
-    low_pass = butter(2, 200, btype='lowpass', fs=sample_rate, output='sos')
+    low_pass = butter(5, 490, btype='lowpass', fs=sample_rate, output='sos')
     audio = sosfilt(low_pass, audio)
+
+    # high pass filter
+    high_pass = butter(5, 30, btype='highpass', fs=sample_rate, output='sos')
+    audio = sosfilt(high_pass, audio)
 
     # normalize 70%
     audio = audio / np.max(np.abs(audio)) * normalization
