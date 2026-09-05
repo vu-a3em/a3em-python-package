@@ -148,9 +148,10 @@ class Arden(Dataset):
         print('prefetch complete')
 
     def __setup(self, random_state, sample_rate, rumble_only):
+        random.seed(random_state)
         self.__prefetch()
         self.__load_metadata(random_state, rumble_only)
-        self.__load_audio_features(random_state, sample_rate)
+        self.__load_audio_features(sample_rate)
 
     def __validate_local_data(self):
         if not (self.audiomoth_path.exists() and self.annotations_path.exists()):
@@ -232,8 +233,7 @@ class Arden(Dataset):
             .reset_index(drop=True)
         )
 
-    def __load_audio_features(self, random_state=None, sample_rate=2000):
-        random.seed(random_state)
+    def __load_audio_features(self, sample_rate=2000):
         clips = [None] * len(self)
         features = [None] * len(self)
         

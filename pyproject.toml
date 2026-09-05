@@ -15,7 +15,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "a3em-analysis"
-version = "0.0.5"
+version = "0.0.6"
 authors = [
     { name="Gabriel Barnard", email="gabriel.h.barnard@vanderbilt.edu" },
 ]
@@ -32,3 +32,7 @@ license-files = ["LICENSE"]
 [project.urls]
 Homepage = "https://github.com/vu-a3em/a3em-python-package"
 Issues = "https://github.com/vu-a3em/a3em-python-package/issues"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-p no:launch_ros -p no:launch"
