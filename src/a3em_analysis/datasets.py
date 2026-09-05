@@ -163,7 +163,7 @@ class Arden(Dataset):
 
     def __download_data(self):
         # make sure the directory is clear
-        a3em.utils.clean_directory(self.path)
+        a3em_analysis.utils.clean_directory(self.path)
 
         # pull files metadata
         print('pulling metadata')
