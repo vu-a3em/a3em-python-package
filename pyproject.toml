@@ -1,21 +1,12 @@
 [build-system]
 requires = [
-    "hatchling >= 1.26",
-    "pandas",
-    "numpy",
-    "librosa",
-    "soundfile",
-    "matplotlib",
-    "scikit-learn",
-    "python-dotenv",
-    "statsmodels",
-    "tqdm"
+    "hatchling >= 1.26"
 ]
 build-backend = "hatchling.build"
 
 [project]
 name = "a3em-analysis"
-version = "0.0.6"
+version = "0.0.7"
 authors = [
     { name="Gabriel Barnard", email="gabriel.h.barnard@vanderbilt.edu" },
 ]
@@ -28,6 +19,18 @@ classifiers = [
 ]
 license = "MIT"
 license-files = ["LICENSE"]
+dependencies = [
+    "pandas",
+    "numpy",
+    "librosa",
+    "soundfile",
+    "scipy",
+    "matplotlib",
+    "scikit-learn",
+    "python-dotenv",
+    "statsmodels",
+    "tqdm"
+]
 
 [project.urls]
 Homepage = "https://github.com/vu-a3em/a3em-python-package"
