@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "a3em-analysis"
-version = "0.0.7"
+version = "0.0.8"
 authors = [
     { name="Gabriel Barnard", email="gabriel.h.barnard@vanderbilt.edu" },
 ]

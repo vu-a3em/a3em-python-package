@@ -54,12 +54,11 @@ class Arden(Dataset):
     def load_data(
         self,
         random_state=None,
-        sample_rate=2000,
         rumble_only=False,
         reload=False
     ):
         if self._clips is None or self._features is None or reload:
-            self.__setup(random_state, sample_rate, rumble_only)
+            self.__setup(random_state, rumble_only)
 
         labels = (
             self.metadata['quality']
@@ -73,13 +72,12 @@ class Arden(Dataset):
         self, 
         test_split=0.2, 
         random_state=None, 
-        sample_rate=2000,
         rumble_only=False, 
         reload=False,
         shuffle=False
     ):        
         if self._clips is None or self._features is None or reload:
-            self.__setup(random_state, sample_rate, rumble_only)
+            self.__setup(random_state, rumble_only)
 
         labels = (
             self.metadata['quality']
@@ -95,26 +93,14 @@ class Arden(Dataset):
             shuffle=shuffle
         )
 
-    def load_clips(
-        self, 
-        random_state=None, 
-        sample_rate=2000, 
-        rumble_only=False,
-        reload=False
-    ):
+    def load_clips(self, random_state=None, rumble_only=False, reload=False):
         if self._clips is None or self._features is None or reload:
-            self.__setup(random_state, sample_rate, rumble_only)
+            self.__setup(random_state, rumble_only)
         return self._clips, self._features   
 
-    def __iter__(
-        self, 
-        random_state=None, 
-        sample_rate=2000, 
-        rumble_only=False,
-        reload=False
-    ):
+    def __iter__(self, random_state=None, rumble_only=False, reload=False):
         if self._clips is None or self._features is None or reload:
-            self.__setup(random_state, sample_rate, rumble_only)
+            self.__setup(random_state, rumble_only)
         self._index = 0
         return self
             
@@ -147,11 +133,11 @@ class Arden(Dataset):
         self.prefetch = dict(zip(file_stems, file_pairs))      
         print('prefetch complete')
 
-    def __setup(self, random_state, sample_rate, rumble_only):
+    def __setup(self, random_state, rumble_only):
         random.seed(random_state)
         self.__prefetch()
         self.__load_metadata(random_state, rumble_only)
-        self.__load_audio_features(sample_rate)
+        self.__load_audio_features()
 
     def __validate_local_data(self):
         if not (self.audiomoth_path.exists() and self.annotations_path.exists()):
@@ -233,7 +219,7 @@ class Arden(Dataset):
             .reset_index(drop=True)
         )
 
-    def __load_audio_features(self, sample_rate=2000):
+    def __load_audio_features(self):
         clips = [None] * len(self)
         features = [None] * len(self)
         
@@ -241,7 +227,7 @@ class Arden(Dataset):
         for stem, prefetch in tqdm(self.prefetch.items()):
             # load in audio file
             audio_file = prefetch['audio_path']
-            audio, _ = librosa.load(audio_file, sr=sample_rate)
+            audio, sample_rate = librosa.load(audio_file, sr=None)
 
             df = self.metadata[self.metadata.file_stem == stem]
             for index, row in df.iterrows():
@@ -345,6 +331,9 @@ class Arden(Dataset):
         clip = audio[start_sample:end_sample]
         if len(clip) < sample_rate * 2:
             return [], {}
-        preprocessed_clip = a3em_analysis.utils.preprocess(clip, sample_rate)
-        features = a3em_analysis.utils.extract_features(preprocessed_clip, sample_rate)
+        preprocessed_clip, sr = a3em_analysis.utils.preprocess(
+            clip, 
+            sample_rate
+        )
+        features = a3em_analysis.utils.extract_features(preprocessed_clip, sr)
         return clip, features

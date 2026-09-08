@@ -1,6 +1,5 @@
 import librosa
 import numpy as np
-import os
 from pathlib import Path
 from scipy.signal import butter, sosfilt
 
@@ -11,17 +10,20 @@ def preprocess(audio: np.ndarray, sample_rate: int, normalization: float = 0.7):
         raise ValueError('the normalization factor must be between 0.0 and 1.0')
 
     # low pass filter
-    low_pass = butter(5, 490, btype='lowpass', fs=sample_rate, output='sos')
+    low_pass = butter(5, 800, btype='lowpass', fs=sample_rate, output='sos')
     audio = sosfilt(low_pass, audio)
 
+    # resample to 2000
+    audio = librosa.resample(audio, orig_sr=sample_rate, target_sr=2000)
+
     # high pass filter
-    high_pass = butter(5, 30, btype='highpass', fs=sample_rate, output='sos')
+    high_pass = butter(2, 4, btype='highpass', fs=sample_rate, output='sos')
     audio = sosfilt(high_pass, audio)
 
     # normalize 70%
     audio = audio / np.max(np.abs(audio)) * normalization
 
-    return audio
+    return audio, 2000
 
 
 def extract_features(audio: np.ndarray, sample_rate: int) -> float:
@@ -55,8 +57,6 @@ def extract_features(audio: np.ndarray, sample_rate: int) -> float:
 
     mel_means = S_mel.mean(axis=1)
     mel_dict = {f'mel_mean_{i+1}': v for i, v in enumerate(mel_means)}
-
-    # TODO - spectral flatness
 
     # Harmonic-to-noise ratio (HPSS approximation)
     harmonic, percussive = librosa.effects.hpss(audio)

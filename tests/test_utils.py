@@ -11,16 +11,18 @@ def sample_audio():
     return np.sin(2 * np.pi * 40 * t), sample_rate
 
 
-def test_preprocess_returns_same_shape(sample_audio):
+def test_preprocess_resamples_to_2kHz(sample_audio):
     audio, sample_rate = sample_audio
-    result = preprocess(audio, sample_rate)
-    assert result.shape == audio.shape
+    result, result_sample_rate = preprocess(audio, sample_rate)
+    assert result_sample_rate == 2000
+    expected_length = round(len(audio) * 2000 / sample_rate)
+    assert result.shape == (expected_length,)
 
 
 def test_preprocess_normalizes_peak_amplitude(sample_audio):
     audio, sample_rate = sample_audio
     normalization = 0.5
-    result = preprocess(audio, sample_rate, normalization=normalization)
+    result, _ = preprocess(audio, sample_rate, normalization=normalization)
     assert np.max(np.abs(result)) == pytest.approx(normalization)
 
 
