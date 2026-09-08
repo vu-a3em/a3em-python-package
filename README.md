@@ -14,7 +14,9 @@ A3EM provides utilities for preprocessing bioacoustic recordings, extracting aco
 preprocess(audio, sample_rate, normalization=0.7)
 ```
 
-Takes an audio clip as a `numpy.ndarray`, applies high-pass and low-pass filtering, and normalizes the signal.
+Takes an audio clip as a `numpy.ndarray`, applies low-pass and high-pass filtering, resamples the signal to `2000` Hz, and normalizes it. This matches the preprocessing pipeline described in the Pardo paper.
+
+Returns a `(audio, sample_rate)` tuple, where `sample_rate` is always `2000`.
 
 ### Example
 
@@ -25,7 +27,7 @@ from a3em_analysis.utils import preprocess
 audio_path = "test.wav"
 audio, sample_rate = librosa.load(audio_path)
 
-preprocessed_audio = preprocess(audio, sample_rate)
+preprocessed_audio, sample_rate = preprocess(audio, sample_rate)
 ```
 
 ---
@@ -47,7 +49,7 @@ from a3em_analysis.utils import preprocess, extract_features
 audio_path = "test.wav"
 audio, sample_rate = librosa.load(audio_path)
 
-preprocessed_audio = preprocess(audio, sample_rate)
+preprocessed_audio, sample_rate = preprocess(audio, sample_rate)
 features = extract_features(preprocessed_audio, sample_rate)
 ```
 
@@ -91,7 +93,6 @@ The extracted clips and features are cached on the `Arden` instance so that subs
 ```python
 load_data(
     random_state=None,
-    sample_rate=2000,
     rumble_only=False,
     reload=False
 )
@@ -112,7 +113,6 @@ features, labels = dataset.load_data(
 | Parameter      | Description                                                                                                        |
 | -------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `random_state` | Seed used when shuffling metadata and generating background-noise clips.                                           |
-| `sample_rate`  | Sample rate used when loading audio. Defaults to `2000`.                                                           |
 | `rumble_only`  | If `True`, only annotated elephant rumbles are included. If `False`, background-noise examples are also generated. |
 | `reload`       | If `True`, regenerates metadata, clips, and features even if they have already been loaded.                        |
 
@@ -128,7 +128,9 @@ Labels are binary:
 * `0` — Background noise
 * `1` — Elephant rumble
 
-Annotation quality values `2`, `3`, and `4` are mapped to the rumble label `1`. Background-noise examples have quality `0` and are mapped to label `0`.
+Annotation quality values `2`, `3`, and `4` are mapped to the rumble label `1`. Background-noise examples have quality `-1` and are mapped to label `0`.
+
+Audio is always loaded at its native sample rate and resampled to `2000` Hz internally by `preprocess` during feature extraction.
 
 ---
 
@@ -138,7 +140,6 @@ Annotation quality values `2`, `3`, and `4` are mapped to the rumble label `1`. 
 load_data_ml(
     test_split=0.2,
     random_state=None,
-    sample_rate=2000,
     rumble_only=False,
     reload=False,
     shuffle=False
@@ -165,7 +166,6 @@ x_train, x_test, y_train, y_test = dataset.load_data_ml(
 | -------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `test_split`   | Fraction of samples reserved for testing. Defaults to `0.2`.                                                       |
 | `random_state` | Seed used for dataset generation and the train/test split.                                                         |
-| `sample_rate`  | Sample rate used when loading audio. Defaults to `2000`.                                                           |
 | `rumble_only`  | If `True`, only annotated elephant rumbles are included. If `False`, background-noise examples are also generated. |
 | `reload`       | If `True`, regenerates metadata, clips, and features before splitting.                                             |
 | `shuffle`      | Whether samples should be shuffled by `train_test_split` before creating the split. Defaults to `False`.           |
@@ -186,7 +186,6 @@ y_test  : pandas.Series
 ```python
 load_clips(
     random_state=None,
-    sample_rate=2000,
     rumble_only=False,
     reload=False
 )
@@ -208,7 +207,6 @@ clips, features = dataset.load_clips(
 | Parameter      | Description                                              |
 | -------------- | -------------------------------------------------------- |
 | `random_state` | Seed used when generating the dataset.                   |
-| `sample_rate`  | Sample rate used when loading audio. Defaults to `2000`. |
 | `rumble_only`  | If `True`, background-noise examples are not generated.  |
 | `reload`       | If `True`, regenerates the clips and features.           |
 
@@ -287,7 +285,7 @@ Only entries satisfying all of the following conditions are retained:
 * `call_type` is `RUM` or `BKG`
 * `earflap` is `0` or `1`
 * `overlap` is `N`
-* `quality` is `0`, `2`, `3`, or `4`
+* `quality` is `-1`, `2`, `3`, or `4`
 * duration is greater than `2` seconds
 
 When `rumble_only=True`, background-noise examples are not generated.
@@ -304,7 +302,7 @@ Generated background-noise entries use:
 
 ```text
 call_type = BKG
-quality   = 0
+quality   = -1
 overlap   = N
 earflap   = 0
 ```
@@ -321,18 +319,14 @@ features, labels = dataset.load_data(
 
 ## Audio Processing
 
-Audio recordings are loaded using `librosa` at the requested sample rate:
-
-```python
-sample_rate=2000
-```
+Audio recordings are loaded using `librosa` at their native sample rate.
 
 For each retained metadata entry:
 
 1. The corresponding time range is extracted from the recording.
 2. A `0.2` second buffer is added to each side.
-3. The clip is passed through `a3em_analysis.utils.preprocess`.
-4. Acoustic features are calculated using `a3em_analysis.utils.extract_features`.
+3. The clip is passed through `a3em_analysis.utils.preprocess`, which resamples it to `2000` Hz.
+4. Acoustic features are calculated using `a3em_analysis.utils.extract_features` at the resampled rate.
 
 The original extracted clip and its computed features are retained by the dataset instance.
 
@@ -353,7 +347,6 @@ features, labels = dataset.load_data(
 This is useful when changing parameters such as:
 
 ```python
-sample_rate
 rumble_only
 random_state
 ```
@@ -393,4 +386,15 @@ clips, clip_features = dataset.load_clips()
 for clip, feature_set in dataset:
     print(clip.shape)
     print(feature_set)
+```
+
+---
+
+## Running Tests
+
+The package includes a `pytest` suite covering `a3em_analysis.utils` and `Arden` dataset determinism.
+
+```bash
+pip install pytest
+pytest
 ```
